@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-slate-50 text-slate-900;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+.meeting-dock .str-video__call-controls {
+  background: transparent !important;
+}
+
+.meeting-dock .str-video__call-controls button {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 9999px !important;
+  transition: all 200ms ease-in-out !important;
+}
+
+.meeting-dock .str-video__call-controls button:hover {
+  background: #e2e8f0 !important;
+}
+
+.meeting-dock .str-video__call-controls button[aria-pressed='true'] {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+}
