@@ -95,7 +95,7 @@ OLLAMA_MODEL="phi3"
 
 # Gemini (Cloud AI for deployment)
 GEMINI_API_KEY="your-gemini-api-key"
-GEMINI_MODEL="gemini-pro"
+GEMINI_MODEL="gemini-1.5-flash"
 
 # Better Auth
 BETTER_AUTH_SECRET="your-random-secret-key-generate-this"

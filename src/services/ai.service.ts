@@ -54,7 +54,7 @@ interface GeminiGenerateResponse {
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'phi3';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-pro';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 const REQUEST_TIMEOUT = 60000; // 60 seconds
 
 type AIResult = { success: true; response: string } | { success: false; error: string };
