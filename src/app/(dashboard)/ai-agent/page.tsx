@@ -16,7 +16,7 @@ export default function AIAgentPage() {
   const [transcript, setTranscript] = useState('');
   const [textInput, setTextInput] = useState('');
   const [conversation, setConversation] = useState<
-    Array<{ role: 'user' | 'assistant'; content: string }>
+    Array<{ role: 'user' | 'assistant'; content: string; provider?: 'gemini' | 'ollama' }>
   >([]);
   const [error, setError] = useState('');
   const [showTranscriptPanel, setShowTranscriptPanel] = useState(true);
@@ -85,7 +85,10 @@ export default function AIAgentPage() {
         conversationHistory: conversation,
       });
 
-      setConversation([...newConversation, { role: 'assistant', content: result.response }]);
+      setConversation([
+        ...newConversation,
+        { role: 'assistant', content: result.response, provider: result.provider },
+      ]);
       speakText(result.response);
     } catch (err: any) {
       const errorMessage =
@@ -235,7 +238,14 @@ export default function AIAgentPage() {
                       msg.role === 'user' ? 'bg-slate-100 text-slate-900' : 'bg-blue-100 text-slate-900'
                     }`}
                   >
-                    <p className="mb-1 text-xs font-semibold">{msg.role === 'user' ? 'You' : 'AI'}</p>
+                    <div className="mb-1 flex items-center gap-2">
+                      <p className="text-xs font-semibold">{msg.role === 'user' ? 'You' : 'AI'}</p>
+                      {msg.role === 'assistant' && msg.provider && (
+                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-700">
+                          {msg.provider}
+                        </span>
+                      )}
+                    </div>
                     <p>{msg.content}</p>
                   </div>
                 ))}

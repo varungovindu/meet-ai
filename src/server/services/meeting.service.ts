@@ -115,7 +115,7 @@ export async function completeMeetingAndGenerateSummary(
 
       return {
         success: false,
-        error: `Failed to generate summary: ${summaryResult.error}`,
+        error: `Failed to generate summary: ${'error' in summaryResult ? summaryResult.error : 'Unknown AI error'}`,
         code: 'AI_FAILED',
       };
     }

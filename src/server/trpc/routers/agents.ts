@@ -33,7 +33,7 @@ export const agentsRouter = router({
       });
 
       if (!result.success) {
-        throw new Error(result.error);
+        throw new Error('error' in result ? result.error : 'Failed to create agent');
       }
 
       return result.agent;
@@ -78,7 +78,7 @@ export const agentsRouter = router({
       const result = await updateAgent(id, ctx.session.user.id, updateData);
 
       if (!result.success) {
-        throw new Error(result.error);
+        throw new Error('error' in result ? result.error : 'Failed to update agent');
       }
 
       return result.agent;
@@ -93,7 +93,7 @@ export const agentsRouter = router({
       const result = await deleteAgent(input.id, ctx.session.user.id);
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to delete agent');
+        throw new Error('error' in result ? result.error : 'Failed to delete agent');
       }
 
       return { success: true };

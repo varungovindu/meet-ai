@@ -104,7 +104,7 @@ export const meetingsRouter = router({
       const result = await updateMeetingStatus(input.id, input.status);
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to update meeting status');
+        throw new Error('error' in result ? result.error : 'Failed to update meeting status');
       }
 
       return { success: true };
@@ -130,7 +130,7 @@ export const meetingsRouter = router({
       const result = await updateMeetingTranscript(input.id, input.transcript);
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to update transcript');
+        throw new Error('error' in result ? result.error : 'Failed to update transcript');
       }
 
       return { success: true };

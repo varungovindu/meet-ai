@@ -36,19 +36,25 @@ export const aiRouter = router({
         throw new Error('Agent not found');
       }
 
+      const normalizedHistory = input.conversationHistory?.map((message) => ({
+        role: message.role as 'user' | 'assistant',
+        content: message.content as string,
+      }));
+
       // Generate response using Ollama
       const result = await generateAgentResponse(
         input.userMessage,
         agent.instructions,
-        input.conversationHistory
+        normalizedHistory
       );
 
       if (!result.success) {
-        throw new Error(result.error);
+        throw new Error('error' in result ? result.error : 'Failed to generate AI response');
       }
 
       return {
         response: result.response,
+        provider: result.provider,
       };
     }),
 });

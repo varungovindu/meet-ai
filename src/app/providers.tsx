@@ -37,7 +37,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
       links: [
         httpBatchLink({
           url: `${getBaseUrl()}/api/trpc`,
-          credentials: 'include',
         }),
       ],
     })
