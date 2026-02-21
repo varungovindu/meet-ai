@@ -1,7 +1,7 @@
 /**
  * AI Service
  * 
- * Handles AI interactions with Gemini (cloud) and Ollama (local fallback).
+ * Handles AI interactions with Groq (cloud) and Ollama (local fallback).
  * This service must ONLY be called from server-side code (API routes, tRPC procedures).
  * Never expose this service to the client side.
  */
@@ -37,12 +37,10 @@ interface OllamaErrorResponse {
   error: string;
 }
 
-interface GeminiGenerateResponse {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{
-        text?: string;
-      }>;
+interface GroqChatResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
     };
   }>;
   error?: {
@@ -53,12 +51,12 @@ interface GeminiGenerateResponse {
 // Service configuration
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'phi3';
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-pro';
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const REQUEST_TIMEOUT = 60000; // 60 seconds
 
 type AIResult = { success: true; response: string } | { success: false; error: string };
-type AIProvider = 'gemini' | 'ollama';
+type AIProvider = 'groq' | 'ollama';
 
 type AIResultWithProvider =
   | { success: true; response: string; provider: AIProvider }
@@ -68,7 +66,7 @@ function isAIError(result: AIResult): result is { success: false; error: string 
   return result.success === false;
 }
 
-async function generateWithGemini(
+async function generateWithGroq(
   prompt: string,
   systemInstructions?: string,
   options?: {
@@ -77,84 +75,83 @@ async function generateWithGemini(
     maxTokens?: number;
   }
 ): Promise<AIResultWithProvider> {
-  if (!GEMINI_API_KEY) {
+  if (!GROQ_API_KEY) {
     return {
       success: false,
-      error: 'Gemini API key is not configured',
+      error: 'Groq API key is not configured',
     };
   }
 
   try {
-    const model = options?.model || GEMINI_MODEL;
-    const mergedPrompt = systemInstructions?.trim()
-      ? `${systemInstructions.trim()}\n\nUser request:\n${prompt.trim()}`
-      : prompt.trim();
+    const model = options?.model || GROQ_MODEL;
+    const messages: Array<{role: string; content: string}> = [];
+    
+    if (systemInstructions?.trim()) {
+      messages.push({
+        role: 'system',
+        content: systemInstructions.trim(),
+      });
+    }
+    
+    messages.push({
+      role: 'user',
+      content: prompt.trim(),
+    });
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: mergedPrompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: options?.temperature ?? 0.7,
-            ...(options?.maxTokens && { maxOutputTokens: options.maxTokens }),
-          },
-        }),
-        signal: controller.signal,
-      }
-    );
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: options?.temperature ?? 0.7,
+        ...(options?.maxTokens && { max_tokens: options.maxTokens }),
+      }),
+      signal: controller.signal,
+    });
 
     clearTimeout(timeoutId);
 
-    const data = (await response.json().catch(() => ({}))) as GeminiGenerateResponse;
+    const data = (await response.json().catch(() => ({}))) as GroqChatResponse;
 
     if (!response.ok) {
       return {
         success: false,
-        error: data.error?.message || `Gemini API error: ${response.status} ${response.statusText}`,
+        error: data.error?.message || `Groq API error: ${response.status} ${response.statusText}`,
       };
     }
 
-    const text =
-      data.candidates?.[0]?.content?.parts
-        ?.map((part) => part.text || '')
-        .join('')
-        .trim() || '';
+    const text = data.choices?.[0]?.message?.content?.trim() || '';
 
     if (!text) {
       return {
         success: false,
-        error: 'Gemini returned empty response',
+        error: 'Groq returned empty response',
       };
     }
 
     return {
       success: true,
       response: text,
-      provider: 'gemini',
+      provider: 'groq' as AIProvider,
     };
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       return {
         success: false,
-        error: 'Gemini request timed out',
+        error: 'Groq request timed out',
       };
     }
 
     return {
       success: false,
-      error: error instanceof Error ? `Gemini request failed: ${error.message}` : 'Gemini request failed',
+      error: error instanceof Error ? `Groq request failed: ${error.message}` : 'Groq request failed',
     };
   }
 }
@@ -242,7 +239,7 @@ async function generateWithOllama(
 }
 
 /**
- * Generate AI response from Ollama
+ * Generate AI response - tries Groq (cloud) first, then falls back to Ollama (local)
  */
 export async function generateAIResponse(
   prompt: string,
@@ -261,26 +258,16 @@ export async function generateAIResponse(
     };
   }
 
-  // Prefer Gemini in production/deployed environments when key is available.
-  if (GEMINI_API_KEY) {
-    const geminiResult = await generateWithGemini(prompt, systemInstructions, options);
-    if (geminiResult.success) {
-      return geminiResult;
+  // Try Groq first (cloud, free tier)
+  if (GROQ_API_KEY) {
+    const groqResult = await generateWithGroq(prompt, systemInstructions, options);
+    if (groqResult.success) {
+      return groqResult;
     }
-
-    const ollamaResult = await generateWithOllama(prompt, systemInstructions, options);
-    if (ollamaResult.success) {
-      return ollamaResult;
-    }
-
-    return {
-      success: false,
-      error: `Gemini failed: ${isAIError(geminiResult) ? geminiResult.error : 'Unknown error'}. Ollama fallback failed: ${
-        isAIError(ollamaResult) ? ollamaResult.error : 'Unknown error'
-      }`,
-    };
+    console.warn('Groq failed, falling back to Ollama:', groqResult.error);
   }
 
+  // Fall back to Ollama (local)
   return generateWithOllama(prompt, systemInstructions, options);
 }
 
