@@ -16,7 +16,7 @@ export default function AIAgentPage() {
   const [transcript, setTranscript] = useState('');
   const [textInput, setTextInput] = useState('');
   const [conversation, setConversation] = useState<
-    Array<{ role: 'user' | 'assistant'; content: string; provider?: 'gemini' | 'ollama' }>
+    Array<{ role: 'user' | 'assistant'; content: string; provider?: 'groq' | 'ollama' }>
   >([]);
   const [error, setError] = useState('');
   const [showTranscriptPanel, setShowTranscriptPanel] = useState(true);

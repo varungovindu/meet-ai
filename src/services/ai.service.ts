@@ -264,7 +264,7 @@ export async function generateAIResponse(
     if (groqResult.success) {
       return groqResult;
     }
-    console.warn('Groq failed, falling back to Ollama:', groqResult.error);
+    console.warn('Groq failed, falling back to Ollama:', 'error' in groqResult ? groqResult.error : 'Unknown error');
   }
 
   // Fall back to Ollama (local)
