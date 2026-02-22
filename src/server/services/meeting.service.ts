@@ -72,21 +72,38 @@ export async function completeMeetingAndGenerateSummary(
       };
     }
 
-    // Step 4: Validate transcript exists
+    // Step 4: Handle missing transcript with fallback summary
     if (!meeting.transcript || meeting.transcript.trim().length === 0) {
-      // Mark as cancelled since we can't generate summary
-      await db
+      const [updatedMeeting] = await db
         .update(meetings)
         .set({
-          status: 'cancelled',
+          summary: 'Meeting completed. No transcript was captured, so a detailed AI summary is unavailable.',
+          status: 'completed',
+          endTime: meeting.endTime ?? new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(meetings.id, meetingId));
+        .where(eq(meetings.id, meetingId))
+        .returning({
+          id: meetings.id,
+          summary: meetings.summary,
+          status: meetings.status,
+        });
+
+      if (!updatedMeeting) {
+        return {
+          success: false,
+          error: 'Failed to finalize meeting without transcript',
+          code: 'UPDATE_FAILED',
+        };
+      }
 
       return {
-        success: false,
-        error: 'No transcript available for this meeting',
-        code: 'NO_TRANSCRIPT',
+        success: true,
+        meeting: {
+          id: updatedMeeting.id,
+          summary: updatedMeeting.summary!,
+          status: updatedMeeting.status as MeetingStatus,
+        },
       };
     }
 
@@ -104,19 +121,36 @@ export async function completeMeetingAndGenerateSummary(
 
     // Step 7: Handle AI generation result
     if (!summaryResult.success) {
-      // AI generation failed - mark as cancelled
-      await db
+      const [updatedMeeting] = await db
         .update(meetings)
         .set({
-          status: 'cancelled',
+          summary: `Meeting completed, but AI summary generation failed. ${'error' in summaryResult ? summaryResult.error : 'Unknown AI error.'}`,
+          status: 'completed',
+          endTime: meeting.endTime ?? new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(meetings.id, meetingId));
+        .where(eq(meetings.id, meetingId))
+        .returning({
+          id: meetings.id,
+          summary: meetings.summary,
+          status: meetings.status,
+        });
+
+      if (!updatedMeeting) {
+        return {
+          success: false,
+          error: 'Failed to save meeting after AI summary error',
+          code: 'UPDATE_FAILED',
+        };
+      }
 
       return {
-        success: false,
-        error: `Failed to generate summary: ${'error' in summaryResult ? summaryResult.error : 'Unknown AI error'}`,
-        code: 'AI_FAILED',
+        success: true,
+        meeting: {
+          id: updatedMeeting.id,
+          summary: updatedMeeting.summary!,
+          status: updatedMeeting.status as MeetingStatus,
+        },
       };
     }
 
@@ -126,6 +160,7 @@ export async function completeMeetingAndGenerateSummary(
       .set({
         summary: summaryResult.summary,
         status: 'completed',
+        endTime: meeting.endTime ?? new Date(),
         updatedAt: new Date(),
       })
       .where(eq(meetings.id, meetingId))
@@ -298,12 +333,22 @@ export async function updateMeetingStatus(
       };
     }
 
+    const updates: {
+      status: MeetingStatus;
+      updatedAt: Date;
+      endTime?: Date;
+    } = {
+      status,
+      updatedAt: new Date(),
+    };
+
+    if ((status === 'completed' || status === 'cancelled') && !meeting.endTime) {
+      updates.endTime = new Date();
+    }
+
     await db
       .update(meetings)
-      .set({
-        status,
-        updatedAt: new Date(),
-      })
+      .set(updates)
       .where(eq(meetings.id, meetingId));
 
     return { success: true };

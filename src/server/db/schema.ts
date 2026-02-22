@@ -123,15 +123,47 @@ export const meetings = sqliteTable('meetings', {
 });
 
 /**
+ * AI Agent conversation messages
+ */
+export const aiAgentMessages = sqliteTable('ai_agent_messages', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  agentId: text('agent_id')
+    .notNull()
+    .references(() => agents.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(),
+  content: text('content').notNull(),
+  provider: text('provider'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }),
+});
+
+/**
  * Relations
  */
 export const agentsRelations = relations(agents, ({ one, many }) => ({
   meetings: many(meetings),
+  messages: many(aiAgentMessages),
 }));
 
 export const meetingsRelations = relations(meetings, ({ one }) => ({
   agent: one(agents, {
     fields: [meetings.agentId],
     references: [agents.id],
+  }),
+}));
+
+export const aiAgentMessagesRelations = relations(aiAgentMessages, ({ one }) => ({
+  agent: one(agents, {
+    fields: [aiAgentMessages.agentId],
+    references: [agents.id],
+  }),
+  user: one(users, {
+    fields: [aiAgentMessages.userId],
+    references: [users.id],
   }),
 }));

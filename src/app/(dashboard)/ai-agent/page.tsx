@@ -9,20 +9,35 @@
 import { useState, useEffect } from 'react';
 import { trpc } from '@/lib/trpc';
 
+type AgentConversationMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+  provider?: 'groq' | 'ollama';
+};
+
 export default function AIAgentPage() {
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [textInput, setTextInput] = useState('');
-  const [conversation, setConversation] = useState<
-    Array<{ role: 'user' | 'assistant'; content: string; provider?: 'groq' | 'ollama' }>
-  >([]);
+  const [conversation, setConversation] = useState<Array<AgentConversationMessage>>([]);
   const [error, setError] = useState('');
   const [showTranscriptPanel, setShowTranscriptPanel] = useState(true);
 
+  const utils = trpc.useUtils();
   const { data: agents } = trpc.agents.list.useQuery();
-  const generateResponse = trpc.ai.generateVoiceResponse.useMutation();
+  const { data: conversationHistory } = trpc.ai.getConversationHistory.useQuery(
+    { agentId: selectedAgentId, limit: 100 },
+    { enabled: Boolean(selectedAgentId) }
+  );
+  const generateResponse = trpc.ai.generateVoiceResponse.useMutation({
+    onSuccess: async () => {
+      if (selectedAgentId) {
+        await utils.ai.getConversationHistory.invalidate({ agentId: selectedAgentId, limit: 100 });
+      }
+    },
+  });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -34,6 +49,21 @@ export default function AIAgentPage() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (selectedAgentId) {
+      setConversation(
+        (conversationHistory || []).map((message) => ({
+          role: message.role,
+          content: message.content,
+          provider: message.provider,
+        }))
+      );
+      return;
+    }
+
+    setConversation([]);
+  }, [selectedAgentId, conversationHistory]);
 
   const startListening = () => {
     if (typeof window === 'undefined') return;
@@ -130,7 +160,6 @@ export default function AIAgentPage() {
   };
 
   const clearConversation = () => {
-    setConversation([]);
     setTranscript('');
     setError('');
     setTextInput('');
@@ -146,7 +175,12 @@ export default function AIAgentPage() {
         <div className="flex items-center gap-3">
           <select
             value={selectedAgentId}
-            onChange={(e) => setSelectedAgentId(e.target.value)}
+            onChange={(e) => {
+              setSelectedAgentId(e.target.value);
+              setTranscript('');
+              setTextInput('');
+              setError('');
+            }}
             className="min-w-72 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm"
           >
             <option value="">Choose an agent...</option>

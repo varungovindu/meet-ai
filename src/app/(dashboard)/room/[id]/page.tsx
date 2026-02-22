@@ -233,12 +233,10 @@ export default function MeetingRoomPage({
         await call.leave();
       }
 
-      if (hasTranscript) {
-        try {
-          await completeMeeting.mutateAsync({ id: meetingId });
-        } catch (error) {
-          console.error('Failed to generate summary on end:', error);
-        }
+      try {
+        await completeMeeting.mutateAsync({ id: meetingId });
+      } catch (error) {
+        console.error('Failed to complete meeting on end:', error);
       }
 
       router.push(`/meetings/${meetingId}`);
