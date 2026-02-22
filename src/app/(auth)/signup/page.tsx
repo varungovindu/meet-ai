@@ -31,11 +31,16 @@ export default function SignupPage() {
     }
 
     try {
-      await signUp.email({
+      const result = await signUp.email({
         name: formData.name,
         email: formData.email,
         password: formData.password,
       });
+
+      if (result?.error) {
+        setError(result.error.message || 'Failed to create account');
+        return;
+      }
 
       router.push('/dashboard');
     } catch (err: any) {

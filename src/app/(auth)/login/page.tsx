@@ -22,10 +22,15 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await signIn.email({
+      const result = await signIn.email({
         email,
         password,
       });
+
+      if (result?.error) {
+        setError(result.error.message || 'Failed to login');
+        return;
+      }
 
       router.push('/dashboard');
     } catch (err: any) {

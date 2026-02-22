@@ -21,7 +21,12 @@ export function getBaseUrl() {
 export function getAuthUrl() {
   // Explicit BETTER_AUTH_URL takes precedence
   if (process.env.BETTER_AUTH_URL) {
-    return process.env.BETTER_AUTH_URL;
+    const authUrl = process.env.BETTER_AUTH_URL;
+    const isLocalhost = authUrl.includes('localhost') || authUrl.includes('127.0.0.1');
+
+    if (!(process.env.VERCEL && isLocalhost)) {
+      return authUrl;
+    }
   }
 
   // Auto-detect based on environment
