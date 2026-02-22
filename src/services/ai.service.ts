@@ -54,6 +54,9 @@ const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'phi3';
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const REQUEST_TIMEOUT = 60000; // 60 seconds
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const IS_VERCEL = Boolean(process.env.VERCEL);
+const HAS_EXPLICIT_OLLAMA_URL = Boolean(process.env.OLLAMA_BASE_URL);
 
 type AIResult = { success: true; response: string } | { success: false; error: string };
 type AIProvider = 'groq' | 'ollama';
@@ -264,7 +267,28 @@ export async function generateAIResponse(
     if (groqResult.success) {
       return groqResult;
     }
-    console.warn('Groq failed, falling back to Ollama:', 'error' in groqResult ? groqResult.error : 'Unknown error');
+
+    const groqError = 'error' in groqResult ? groqResult.error : 'Unknown error';
+    if (IS_PRODUCTION || IS_VERCEL) {
+      return {
+        success: false,
+        error: `Groq request failed: ${groqError}`,
+      };
+    }
+
+    console.warn('Groq failed, falling back to Ollama (local dev only):', groqError);
+  } else if (IS_PRODUCTION || IS_VERCEL) {
+    return {
+      success: false,
+      error: 'Groq API key is not configured in deployment environment (set GROQ_API_KEY).',
+    };
+  }
+
+  if (!HAS_EXPLICIT_OLLAMA_URL && (IS_PRODUCTION || IS_VERCEL)) {
+    return {
+      success: false,
+      error: 'Ollama fallback is disabled in deployment. Configure GROQ_API_KEY and GROQ_MODEL.',
+    };
   }
 
   // Fall back to Ollama (local)

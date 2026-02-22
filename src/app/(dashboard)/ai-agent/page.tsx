@@ -124,7 +124,7 @@ export default function AIAgentPage() {
       const errorMessage =
         err?.message ||
         err?.data?.message ||
-        'Failed to get AI response. Make sure Ollama is running and you have selected an agent.';
+        'Failed to get AI response. Please verify GROQ_API_KEY is configured in Vercel and an agent is selected.';
       setError(errorMessage);
     }
   };
