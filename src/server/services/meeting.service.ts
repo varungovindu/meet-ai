@@ -360,3 +360,35 @@ export async function updateMeetingStatus(
     };
   }
 }
+
+/**
+ * Delete meeting by ID
+ */
+export async function deleteMeetingById(
+  meetingId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const [meeting] = await db
+      .select({ id: meetings.id })
+      .from(meetings)
+      .where(eq(meetings.id, meetingId))
+      .limit(1);
+
+    if (!meeting) {
+      return {
+        success: false,
+        error: 'Meeting not found',
+      };
+    }
+
+    await db.delete(meetings).where(eq(meetings.id, meetingId));
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting meeting:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete meeting',
+    };
+  }
+}

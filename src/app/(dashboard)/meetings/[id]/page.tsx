@@ -7,6 +7,7 @@
 'use client';
 
 import { use, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '@/lib/trpc';
 
@@ -17,6 +18,7 @@ export default function MeetingDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const router = useRouter();
   const { id } = use(params);
   const [transcript, setTranscript] = useState('');
   const [isUpdatingTranscript, setIsUpdatingTranscript] = useState(false);
@@ -47,6 +49,13 @@ export default function MeetingDetailPage({
     },
   });
 
+  const deleteMeeting = trpc.meetings.delete.useMutation({
+    onSuccess: () => {
+      utils.meetings.list.invalidate();
+      router.push('/meetings');
+    },
+  });
+
   const handleSaveTranscript = () => {
     if (!transcript.trim()) return;
     updateTranscript.mutate({ id, transcript });
@@ -55,6 +64,12 @@ export default function MeetingDetailPage({
   const handleComplete = () => {
     if (confirm('Generate AI summary for this meeting?')) {
       completeMeeting.mutate({ id });
+    }
+  };
+
+  const handleDelete = () => {
+    if (confirm('Delete this meeting permanently? This cannot be undone.')) {
+      deleteMeeting.mutate({ id });
     }
   };
 
@@ -91,6 +106,11 @@ export default function MeetingDetailPage({
       </main>
     );
   }
+
+  const canGenerateSummary =
+    Boolean(meeting.transcript?.trim()) &&
+    meeting.status !== 'processing' &&
+    meeting.status !== 'completed';
 
   return (
     <main className="min-h-screen bg-slate-50 px-8 py-6">
@@ -157,7 +177,7 @@ export default function MeetingDetailPage({
               </>
             )}
 
-            {meeting.status === 'active' && meeting.transcript && (
+            {canGenerateSummary && (
               <button
                 onClick={handleComplete}
                 disabled={completeMeeting.isPending}
@@ -166,6 +186,14 @@ export default function MeetingDetailPage({
                 {completeMeeting.isPending ? 'Generating...' : 'Generate Summary'}
               </button>
             )}
+
+            <button
+              onClick={handleDelete}
+              disabled={deleteMeeting.isPending}
+              className="rounded-xl bg-red-50 px-4 py-2 text-red-600 shadow-sm transition-all duration-200 hover:bg-red-100 disabled:opacity-50"
+            >
+              {deleteMeeting.isPending ? 'Deleting...' : 'Delete Meeting'}
+            </button>
           </div>
 
           <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">

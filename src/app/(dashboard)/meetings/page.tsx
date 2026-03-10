@@ -14,6 +14,7 @@ export default function MeetingsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [meetingName, setMeetingName] = useState('');
   const [createError, setCreateError] = useState('');
+  const [deleteError, setDeleteError] = useState('');
 
   const utils = trpc.useUtils();
   const { data: meetings, isLoading } = trpc.meetings.list.useQuery();
@@ -29,6 +30,16 @@ export default function MeetingsPage() {
     },
   });
 
+  const deleteMeeting = trpc.meetings.delete.useMutation({
+    onSuccess: () => {
+      utils.meetings.list.invalidate();
+      setDeleteError('');
+    },
+    onError: (error) => {
+      setDeleteError(error.message || 'Failed to delete meeting');
+    },
+  });
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!meetingName.trim()) return;
@@ -37,6 +48,14 @@ export default function MeetingsPage() {
     createMeeting.mutate({
       name: meetingName,
     });
+  };
+
+  const handleDeleteMeeting = (meetingId: string) => {
+    if (!confirm('Delete this meeting permanently? This cannot be undone.')) {
+      return;
+    }
+    setDeleteError('');
+    deleteMeeting.mutate({ id: meetingId });
   };
 
   return (
@@ -99,6 +118,11 @@ export default function MeetingsPage() {
             <h2 className="text-2xl font-semibold text-slate-900">All Meetings</h2>
           </div>
           <div className="px-8 py-6 space-y-6">
+            {deleteError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+                {deleteError}
+              </div>
+            )}
             {isLoading ? (
               <p className="text-slate-600">Loading meetings...</p>
             ) : meetings && meetings.length > 0 ? (
@@ -121,21 +145,35 @@ export default function MeetingsPage() {
                           </p>
                         )}
                       </div>
-                      <span
-                        className={`rounded-xl px-3 py-1 text-sm font-medium ${
-                          meeting.status === 'completed'
-                            ? 'bg-green-100 text-green-600'
-                            : meeting.status === 'active'
-                            ? 'bg-blue-100 text-blue-600'
-                            : meeting.status === 'processing'
-                            ? 'bg-yellow-100 text-yellow-600'
-                            : meeting.status === 'cancelled'
-                            ? 'bg-red-100 text-red-600'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {meeting.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`rounded-xl px-3 py-1 text-sm font-medium ${
+                            meeting.status === 'completed'
+                              ? 'bg-green-100 text-green-600'
+                              : meeting.status === 'active'
+                              ? 'bg-blue-100 text-blue-600'
+                              : meeting.status === 'processing'
+                              ? 'bg-yellow-100 text-yellow-600'
+                              : meeting.status === 'cancelled'
+                              ? 'bg-red-100 text-red-600'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {meeting.status}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            handleDeleteMeeting(meeting.id);
+                          }}
+                          disabled={deleteMeeting.isPending}
+                          className="rounded-xl bg-red-50 px-3 py-1 text-sm font-medium text-red-600 transition-all duration-200 hover:bg-red-100 disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </Link>
                 ))}

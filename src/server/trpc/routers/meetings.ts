@@ -14,6 +14,7 @@ import {
   completeMeetingAndGenerateSummary,
   updateMeetingTranscript,
   updateMeetingStatus,
+  deleteMeetingById,
   type MeetingStatus,
 } from '@/server/services/meeting.service';
 
@@ -155,5 +156,26 @@ export const meetingsRouter = router({
       }
 
       return result.meeting;
+    }),
+
+  /**
+   * Delete meeting
+   */
+  delete: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Verify ownership
+      const meeting = await getMeetingById(input.id);
+      if (!meeting || meeting.userId !== ctx.session.user.id) {
+        throw new Error('Meeting not found');
+      }
+
+      const result = await deleteMeetingById(input.id);
+
+      if (!result.success) {
+        throw new Error('error' in result ? result.error : 'Failed to delete meeting');
+      }
+
+      return { success: true };
     }),
 });
