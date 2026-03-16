@@ -25,6 +25,7 @@ export default function MeetingDetailPage({
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailTab>('summary');
   const [askInput, setAskInput] = useState('');
+  const [actionError, setActionError] = useState('');
 
   const utils = trpc.useUtils();
   const { data: meeting, isLoading } = trpc.meetings.getById.useQuery({ id });
@@ -33,19 +34,33 @@ export default function MeetingDetailPage({
     onSuccess: () => {
       utils.meetings.getById.invalidate({ id });
       setIsUpdatingTranscript(false);
+      setActionError('');
+    },
+    onError: (error) => {
+      setActionError(error.message || 'Failed to save transcript');
     },
   });
 
   const completeMeeting = trpc.meetings.completeMeeting.useMutation({
     onSuccess: () => {
       utils.meetings.getById.invalidate({ id });
+      utils.meetings.list.invalidate();
       setActiveTab('summary');
+      setActionError('');
+    },
+    onError: (error) => {
+      setActionError(error.message || 'Failed to generate summary');
     },
   });
 
   const updateStatus = trpc.meetings.updateStatus.useMutation({
     onSuccess: () => {
       utils.meetings.getById.invalidate({ id });
+      utils.meetings.list.invalidate();
+      setActionError('');
+    },
+    onError: (error) => {
+      setActionError(error.message || 'Failed to update meeting status');
     },
   });
 
@@ -62,12 +77,14 @@ export default function MeetingDetailPage({
   };
 
   const handleComplete = () => {
+    setActionError('');
     if (confirm('Generate AI summary for this meeting?')) {
       completeMeeting.mutate({ id });
     }
   };
 
   const handleDelete = () => {
+    setActionError('');
     if (confirm('Delete this meeting permanently? This cannot be undone.')) {
       deleteMeeting.mutate({ id });
     }
@@ -107,10 +124,7 @@ export default function MeetingDetailPage({
     );
   }
 
-  const canGenerateSummary =
-    Boolean(meeting.transcript?.trim()) &&
-    meeting.status !== 'processing' &&
-    meeting.status !== 'completed';
+  const canGenerateSummary = Boolean(meeting.transcript?.trim()) && meeting.status !== 'processing';
 
   return (
     <main className="min-h-screen bg-slate-50 px-8 py-6">
@@ -120,6 +134,12 @@ export default function MeetingDetailPage({
         </Link>
 
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          {actionError && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+              {actionError}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">{meeting.name}</h1>
@@ -183,7 +203,7 @@ export default function MeetingDetailPage({
                 disabled={completeMeeting.isPending}
                 className="rounded-xl bg-blue-600 px-4 py-2 text-white shadow-sm transition-all duration-200 hover:bg-blue-700 disabled:opacity-50"
               >
-                {completeMeeting.isPending ? 'Generating...' : 'Generate Summary'}
+                {completeMeeting.isPending ? 'Generating...' : meeting.summary ? 'Regenerate Summary' : 'Generate Summary'}
               </button>
             )}
 

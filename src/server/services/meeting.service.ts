@@ -30,7 +30,7 @@ export interface CompleteMeetingResult {
 export interface CompleteMeetingError {
   success: false;
   error: string;
-  code: 'NOT_FOUND' | 'NO_TRANSCRIPT' | 'ALREADY_COMPLETED' | 'AI_FAILED' | 'UPDATE_FAILED' | 'UNKNOWN';
+  code: 'NOT_FOUND' | 'NO_TRANSCRIPT' | 'AI_FAILED' | 'UPDATE_FAILED' | 'UNKNOWN';
 }
 
 /**
@@ -38,10 +38,12 @@ export interface CompleteMeetingError {
  * 
  * This is the main workflow for post-meeting processing:
  * 1. Validate meeting exists
- * 2. Validate transcript exists
- * 3. Update status to "processing"
- * 4. Generate AI summary
- * 5. Save summary and mark as "completed" (or "cancelled" on failure)
+ * 2. Update status to "processing" when transcript exists
+ * 3. Generate AI summary
+ * 4. Save summary and mark as "completed"
+ *
+ * Note: This function is intentionally idempotent and can be called again
+ * to regenerate summaries after transcript updates.
  */
 export async function completeMeetingAndGenerateSummary(
   meetingId: string
@@ -63,16 +65,7 @@ export async function completeMeetingAndGenerateSummary(
       };
     }
 
-    // Step 3: Check if already completed
-    if (meeting.status === 'completed') {
-      return {
-        success: false,
-        error: 'Meeting is already completed',
-        code: 'ALREADY_COMPLETED',
-      };
-    }
-
-    // Step 4: Handle missing transcript with fallback summary
+    // Step 3: Handle missing transcript with fallback summary
     if (!meeting.transcript || meeting.transcript.trim().length === 0) {
       const [updatedMeeting] = await db
         .update(meetings)
@@ -107,7 +100,7 @@ export async function completeMeetingAndGenerateSummary(
       };
     }
 
-    // Step 5: Update status to "processing"
+    // Step 4: Update status to "processing"
     await db
       .update(meetings)
       .set({
@@ -116,10 +109,10 @@ export async function completeMeetingAndGenerateSummary(
       })
       .where(eq(meetings.id, meetingId));
 
-    // Step 6: Generate summary using AI service
+    // Step 5: Generate summary using AI service
     const summaryResult = await generateMeetingSummary(meeting.transcript);
 
-    // Step 7: Handle AI generation result
+    // Step 6: Handle AI generation result
     if (!summaryResult.success) {
       const [updatedMeeting] = await db
         .update(meetings)
@@ -154,7 +147,7 @@ export async function completeMeetingAndGenerateSummary(
       };
     }
 
-    // Step 8: Save summary and mark as completed
+    // Step 7: Save summary and mark as completed
     const [updatedMeeting] = await db
       .update(meetings)
       .set({
@@ -170,7 +163,7 @@ export async function completeMeetingAndGenerateSummary(
         status: meetings.status,
       });
 
-    // Step 9: Validate update succeeded
+    // Step 8: Validate update succeeded
     if (!updatedMeeting) {
       return {
         success: false,

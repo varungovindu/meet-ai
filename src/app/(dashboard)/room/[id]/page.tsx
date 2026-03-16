@@ -237,6 +237,11 @@ export default function MeetingRoomPage({
         await completeMeeting.mutateAsync({ id: meetingId });
       } catch (error) {
         console.error('Failed to complete meeting on end:', error);
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : 'Failed to generate summary automatically. You can add transcript and generate summary from meeting details.';
+        setRoomError(errorMessage);
       }
 
       router.push(`/meetings/${meetingId}`);
