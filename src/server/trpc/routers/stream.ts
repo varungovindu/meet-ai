@@ -26,6 +26,7 @@ export const streamRouter = router({
       token,
       apiKey: process.env.NEXT_PUBLIC_STREAM_API_KEY!,
       userId,
+      userName,
     };
   }),
 });

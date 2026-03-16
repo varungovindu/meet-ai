@@ -172,7 +172,7 @@ export default function MeetingRoomPage({
       apiKey: streamData.apiKey,
       user: {
         id: streamData.userId,
-        name: streamData.userId,
+        name: streamData.userName || streamData.userId,
       },
       token: streamData.token,
     });
@@ -334,9 +334,12 @@ export default function MeetingRoomPage({
   return (
     <StreamVideo client={client}>
       <StreamCall call={call}>
-        <div className="relative flex min-h-screen flex-col bg-slate-50">
-          <div className="flex items-center justify-between border-b border-slate-200 bg-white px-8 py-6">
-            <h1 className="truncate text-lg font-semibold text-slate-900">{meeting?.name || 'Meeting Room'}</h1>
+        <div className="relative flex min-h-screen flex-col bg-slate-100">
+          <div className="flex items-center justify-between border-b border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-semibold text-slate-900">{meeting?.name || 'Meeting Room'}</h1>
+              <p className="text-xs text-slate-500">Live conference session</p>
+            </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={handleCopyInviteLink}
@@ -360,11 +363,22 @@ export default function MeetingRoomPage({
             </div>
           )}
 
-          <div className="flex-1 px-8 pb-32 pt-6">
-            <div className="mx-auto h-full max-w-6xl rounded-xl bg-black shadow-md">
-              <div className="h-full overflow-hidden rounded-xl">
+          <div className="flex-1 px-4 pb-32 pt-4 md:px-6 lg:px-8">
+            <div className={`mx-auto grid h-[calc(100vh-11rem)] w-full max-w-[1440px] gap-4 ${showTranscriptPanel ? 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]' : 'grid-cols-1'}`}>
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-black shadow-xl">
                 <SpeakerLayout />
               </div>
+
+              {showTranscriptPanel && (
+                <aside className="hidden h-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:block">
+                  <h3 className="mb-3 text-base font-semibold text-slate-900">Live Transcript</h3>
+                  <div className="h-[calc(100%-2.5rem)] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="whitespace-pre-wrap text-sm text-slate-700">
+                      {transcript || 'Transcript will appear here once started.'}
+                    </p>
+                  </div>
+                </aside>
+              )}
             </div>
           </div>
 
@@ -378,10 +392,10 @@ export default function MeetingRoomPage({
           />
 
           {showTranscriptPanel && (
-            <aside className="fixed right-6 top-24 z-20 h-[calc(100vh-9rem)] w-80 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="mb-3 text-base font-semibold text-slate-900">Live Transcript</h3>
-              <div className="h-[calc(100%-2.5rem)] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="whitespace-pre-wrap text-sm text-slate-700">
+            <aside className="fixed inset-x-4 bottom-24 z-20 max-h-52 rounded-2xl border border-slate-200 bg-white p-3 shadow-md xl:hidden">
+              <h3 className="mb-2 text-sm font-semibold text-slate-900">Live Transcript</h3>
+              <div className="h-[calc(100%-2rem)] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+                <p className="whitespace-pre-wrap text-xs text-slate-700">
                   {transcript || 'Transcript will appear here once started.'}
                 </p>
               </div>
