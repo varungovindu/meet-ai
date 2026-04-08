@@ -55,3 +55,47 @@ body {
   backdrop-filter: blur(4px) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
 }
+
+.meeting-grid-stage .str-video__paginated-grid-layout__wrapper,
+.meeting-grid-stage .str-video__paginated-grid-layout,
+.meeting-grid-stage .str-video__paginated-grid-layout__group {
+  height: 100% !important;
+}
+
+.meeting-grid-stage .str-video__paginated-grid-layout {
+  padding: 1rem !important;
+  background: radial-gradient(circle at top, rgba(30, 41, 59, 0.35), rgba(2, 6, 23, 0.95)) !important;
+}
+
+.meeting-grid-stage .str-video__paginated-grid-layout__group {
+  gap: 1rem !important;
+}
+
+.meeting-grid-stage .str-video__participant-view {
+  overflow: hidden !important;
+  border-radius: 24px !important;
+  border: 1px solid rgba(148, 163, 184, 0.18) !important;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.18), rgba(15, 23, 42, 0.5)) !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28) !important;
+}
+
+.meeting-grid-stage .str-video__participant-view--speaking {
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.75), 0 18px 50px rgba(0, 0, 0, 0.34) !important;
+}
+
+.meeting-grid-stage .str-video__participant-view .str-video__video,
+.meeting-grid-stage .str-video__participant-view video {
+  object-fit: cover !important;
+}
+
+.meeting-grid-stage .str-video__participant-details {
+  margin: 0 0 14px 14px !important;
+  border-radius: 9999px !important;
+  background: rgba(15, 23, 42, 0.82) !important;
+}
+
+.meeting-grid-stage .str-video__call-controls__button {
+  background: rgba(15, 23, 42, 0.65) !important;
+  border-radius: 9999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}

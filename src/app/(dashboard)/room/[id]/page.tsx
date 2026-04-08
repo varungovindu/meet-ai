@@ -9,13 +9,12 @@
 import { use, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
-import { useSession } from '@/lib/auth-client';
 import {
   StreamVideo,
   StreamVideoClient,
   StreamCall,
   Call,
-  SpeakerLayout,
+  PaginatedGridLayout,
   useCallStateHooks,
   useCall,
 } from '@stream-io/video-react-sdk';
@@ -28,9 +27,7 @@ import {
   Monitor,
   PhoneOff,
   Smile,
-  Sparkles,
   Subtitles,
-  UserRound,
   Video,
   VideoOff,
 } from 'lucide-react';
@@ -147,13 +144,18 @@ function MeetingControls({
             }`}
             type="button"
           >
-            <Sparkles size={18} />
+            <Subtitles size={18} />
             {isRecording ? 'Stop Transcript' : 'Start Transcript'}
           </button>
         ) : (
-          <div className="flex h-14 items-center rounded-2xl border border-slate-700 bg-slate-900 px-4 text-sm text-slate-300">
-            Host manages transcript
-          </div>
+          <button
+            disabled
+            className="flex h-14 items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-4 text-sm text-slate-400 opacity-70"
+            type="button"
+          >
+            <Subtitles size={18} />
+            Transcript
+          </button>
         )}
 
         <button
@@ -184,7 +186,6 @@ export default function MeetingRoomPage({
 }) {
   const { id: meetingId } = use(params);
   const router = useRouter();
-  const { data: session } = useSession();
   const [client, setClient] = useState<StreamVideoClient | null>(null);
   const [call, setCall] = useState<Call | null>(null);
   const [liveTranscriptLines, setLiveTranscriptLines] = useState<string[]>([]);
@@ -210,7 +211,6 @@ export default function MeetingRoomPage({
   const completeMeeting = trpc.meetings.completeMeeting.useMutation();
 
   const isHost = Boolean(meeting?.isOwner);
-  const currentUserName = session?.user?.name || session?.user?.email || streamData?.userName || 'Participant';
 
   useEffect(() => {
     if (!streamData) return;
@@ -412,11 +412,10 @@ export default function MeetingRoomPage({
 
   if (!client || !call) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,#dbeafe_0%,#e2e8f0_35%,#f8fafc_100%)] px-6">
-        <div className="rounded-3xl border border-white/70 bg-white/85 px-8 py-10 text-center shadow-xl backdrop-blur">
-          <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Meet AI</p>
-          <h1 className="mt-3 text-2xl font-semibold text-slate-950">Preparing your meeting room</h1>
-          <p className="mt-2 text-sm text-slate-600">Connecting video, transcript, and session controls...</p>
+      <div className="flex h-screen items-center justify-center bg-slate-950 px-6">
+        <div className="rounded-3xl border border-slate-800 bg-slate-900 px-8 py-10 text-center shadow-xl">
+          <h1 className="text-2xl font-semibold text-white">Joining meeting...</h1>
+          <p className="mt-2 text-sm text-slate-400">Connecting video and transcript.</p>
         </div>
       </div>
     );
@@ -425,125 +424,77 @@ export default function MeetingRoomPage({
   return (
     <StreamVideo client={client}>
       <StreamCall call={call}>
-        <main className="min-h-screen bg-[radial-gradient(circle_at_top,#cbd5e1_0%,#e2e8f0_25%,#f8fafc_62%)] pb-32">
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-5 md:px-6 lg:px-8">
-            <section className="overflow-hidden rounded-[32px] border border-white/70 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur">
-              <div className="flex flex-col gap-6 border-b border-slate-200/80 bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_50%,#0f766e_100%)] px-6 py-6 text-white lg:flex-row lg:items-end lg:justify-between">
-                <div className="max-w-2xl">
-                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-slate-100">
-                    <Sparkles size={14} />
-                    Smart meeting room
-                  </div>
-                  <h1 className="text-3xl font-semibold tracking-tight">{meeting?.name || 'Meeting Room'}</h1>
-                  <p className="mt-2 max-w-xl text-sm text-slate-200">
-                    {isHost
-                      ? 'You are hosting this call. End the meeting when everyone is done to save the transcript and generate the summary.'
-                      : 'You are joining as a participant. You can follow the live transcript here, and the saved summary will appear after the host finishes the meeting.'}
-                  </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-300">Role</p>
-                    <p className="mt-2 text-sm font-semibold text-white">{isHost ? 'Host' : 'Guest'}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-300">Transcript</p>
-                    <p className="mt-2 text-sm font-semibold text-white">{isRecording ? 'Live' : 'Standby'}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-300">You</p>
-                    <p className="mt-2 truncate text-sm font-semibold text-white">{currentUserName}</p>
-                  </div>
-                </div>
+        <main className="h-screen overflow-hidden bg-slate-950 text-white">
+          <div className="flex h-full flex-col">
+            <header className="flex shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950/95 px-4 py-4 backdrop-blur md:px-6">
+              <div className="min-w-0">
+                <h1 className="truncate text-lg font-semibold text-white">{meeting?.name || 'Meeting Room'}</h1>
+                <p className="mt-1 text-xs text-slate-400">{isHost ? 'Host' : 'Guest'}</p>
               </div>
 
-              <div className="flex flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
-                    <UserRound size={16} />
-                    {isHost ? 'Host controls meeting actions' : 'Guest access to transcript and summary'}
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 font-medium text-emerald-700">
-                    <Subtitles size={16} />
-                    {transcriptStatus}
-                  </span>
-                </div>
-
+              <div className="flex items-center gap-3">
+                <span className="hidden rounded-full border border-slate-800 bg-slate-900 px-3 py-1 text-xs text-slate-300 md:inline-flex">
+                  {isRecording ? 'Transcript live' : transcriptStatus}
+                </span>
                 <button
                   onClick={handleCopyInviteLink}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-100 transition-all duration-200 hover:border-slate-700 hover:bg-slate-800"
                   type="button"
                 >
                   <Copy size={16} />
-                  {copied ? 'Invite link copied' : 'Copy invite link'}
+                  {copied ? 'Copied' : 'Copy link'}
                 </button>
               </div>
-            </section>
+            </header>
 
             {roomError && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">
+              <div className="shrink-0 border-b border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200 md:px-6">
                 {roomError}
               </div>
             )}
 
-            <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <div className="overflow-hidden rounded-[30px] border border-slate-200 bg-slate-950 shadow-[0_18px_50px_rgba(15,23,42,0.22)]">
-                <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 text-white">
-                  <div>
-                    <p className="text-sm font-semibold">Live stage</p>
-                    <p className="text-xs text-slate-300">Professional layout for everyone in the room</p>
+            <section className="min-h-0 flex-1 px-4 py-4 md:px-6">
+              <div className={`grid h-full min-h-0 gap-4 ${showTranscriptPanel ? 'xl:grid-cols-[minmax(0,1fr)_320px]' : 'grid-cols-1'}`}>
+                <div className="meeting-grid-stage min-h-0 overflow-hidden rounded-[28px] border border-slate-800 bg-black shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+                  <div className="h-full min-h-0 bg-black">
+                    <PaginatedGridLayout groupSize={9} pageArrowsVisible />
                   </div>
-                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200">
-                    {isHost ? 'Host session' : 'Participant session'}
-                  </span>
                 </div>
-                <div className="h-[58vh] min-h-[420px] bg-black">
-                  <SpeakerLayout />
-                </div>
+
+                <aside className={`${showTranscriptPanel ? 'hidden xl:flex' : 'hidden'} min-h-0 flex-col overflow-hidden rounded-[28px] border border-slate-800 bg-slate-900`}>
+                  <div className="shrink-0 border-b border-slate-800 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className="text-sm font-semibold text-white">Transcript</h2>
+                      <span className="text-xs text-slate-400">{isRecording ? 'Live' : 'Standby'}</span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-400">{transcriptStatus}</p>
+                  </div>
+
+                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                    <p className="whitespace-pre-wrap text-sm leading-7 text-slate-200">
+                      {liveTranscript || 'Transcript will appear here.'}
+                    </p>
+                  </div>
+                </aside>
               </div>
-
-              <aside className={`${showTranscriptPanel ? 'flex' : 'hidden'} flex-col overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.12)] xl:flex`}>
-                <div className="border-b border-slate-200 px-5 py-4">
-                  <h2 className="text-lg font-semibold text-slate-950">Meeting notes</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Everyone in the call can follow the live transcript. Saved notes appear after the meeting ends.
-                  </p>
-                </div>
-
-                <div className="grid gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Status</p>
-                    <p className="mt-2 text-sm font-medium text-slate-700">{transcriptStatus}</p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">After meeting</p>
-                    <p className="mt-2 text-sm font-medium text-slate-700">
-                      Transcript and summary stay available at `/meetings/{meetingId}` for invited participants too.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-hidden px-5 py-4">
-                  <div className="h-full overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                      {liveTranscript || 'Spoken captions will appear here once the shared transcript starts.'}
-                    </p>
-                  </div>
-                </div>
-              </aside>
             </section>
 
             {showTranscriptPanel && (
-              <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm xl:hidden">
-                <h2 className="text-base font-semibold text-slate-950">Transcript</h2>
-                <p className="mt-1 text-sm text-slate-500">{transcriptStatus}</p>
-                <div className="mt-4 max-h-56 overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                    {liveTranscript || 'Spoken captions will appear here once the shared transcript starts.'}
-                  </p>
-                </div>
-              </section>
+              <div className="pointer-events-none fixed inset-x-4 bottom-28 z-20 xl:hidden">
+                <section className="pointer-events-auto rounded-[24px] border border-slate-800 bg-slate-900/95 shadow-2xl backdrop-blur">
+                  <div className="border-b border-slate-800 px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className="text-sm font-semibold text-white">Transcript</h2>
+                      <span className="text-xs text-slate-400">{isRecording ? 'Live' : 'Standby'}</span>
+                    </div>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto px-4 py-3">
+                    <p className="whitespace-pre-wrap text-sm leading-7 text-slate-200">
+                      {liveTranscript || 'Transcript will appear here.'}
+                    </p>
+                  </div>
+                </section>
+              </div>
             )}
           </div>
 
