@@ -1,62 +1,97 @@
 /**
  * Stream Webhook Handler
- * 
- * Receives webhooks from Stream Video SDK for:
- * - Call recording completed
- * - Transcription completed
- * - Call ended events
+ *
+ * Receives webhook events for completed Stream assets and syncs them
+ * into the meetings table.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { updateMeetingTranscript, completeMeetingAndGenerateSummary } from '@/server/services/meeting.service';
+import {
+  completeMeetingAndGenerateSummary,
+  updateMeetingArtifacts,
+} from '@/server/services/meeting.service';
 
 export const runtime = 'nodejs';
 
+type StreamWebhookBody = {
+  type?: string;
+  call_cid?: string;
+  call?: {
+    id?: string;
+  };
+  call_transcription?: {
+    url?: string;
+  };
+  recording?: {
+    url?: string;
+  };
+};
+
+type TranscriptLine = {
+  start_time?: string;
+  end_time?: string;
+  speaker_id?: string;
+  text?: string;
+  user?: {
+    id?: string;
+    name?: string;
+  };
+};
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    
-    // Verify webhook signature (production requirement)
-    // const signature = req.headers.get('x-signature');
-    // if (!verifySignature(signature, body)) {
-    //   return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    // }
+    const body = (await req.json()) as StreamWebhookBody;
 
-    const { type, call, transcript } = body;
+    const meetingId = resolveMeetingId(body);
 
-    console.log('Stream webhook received:', { type, callId: call?.id });
+    console.log('Stream webhook received:', {
+      type: body.type,
+      meetingId,
+      callCid: body.call_cid,
+      callId: body.call?.id,
+    });
 
-    switch (type) {
-      case 'call.transcription_ready':
-        // Handle transcript ready event
-        if (call?.id && transcript) {
-          const transcriptText = formatTranscript(transcript);
-          
-          await updateMeetingTranscript(call.id, transcriptText);
-          
-          // Optionally auto-generate summary
-          // await completeMeetingAndGenerateSummary(call.id);
+    if (!meetingId) {
+      return NextResponse.json({ success: true, ignored: true });
+    }
+
+    switch (body.type) {
+      case 'call.transcription_ready': {
+        const transcriptUrl = body.call_transcription?.url;
+
+        if (!transcriptUrl) {
+          return NextResponse.json({ success: true, ignored: true });
+        }
+
+        const transcriptText = await fetchAndFormatTranscript(transcriptUrl);
+
+        if (!transcriptText) {
+          console.error('Transcript file was empty or unreadable:', transcriptUrl);
+          return NextResponse.json({ success: false }, { status: 500 });
+        }
+
+        await updateMeetingArtifacts(meetingId, {
+          transcriptUrl,
+          transcript: transcriptText,
+          status: 'processing',
+          endTime: new Date(),
+        });
+
+        await completeMeetingAndGenerateSummary(meetingId);
+        break;
+      }
+
+      case 'call.recording_ready': {
+        if (body.recording?.url) {
+          await updateMeetingArtifacts(meetingId, {
+            recordingUrl: body.recording.url,
+          });
         }
         break;
-
-      case 'call.ended':
-        // Handle call ended event
-        if (call?.id) {
-          console.log('Call ended:', call.id);
-          // Could trigger summary generation if transcript exists
-        }
-        break;
-
-      case 'call.recording_ready':
-        // Handle recording ready event
-        if (call?.id && body.recording?.url) {
-          console.log('Recording ready:', body.recording.url);
-          // Could store recording URL in database
-        }
-        break;
+      }
 
       default:
-        console.log('Unhandled webhook type:', type);
+        console.log('Unhandled webhook type:', body.type);
     }
 
     return NextResponse.json({ success: true });
@@ -69,31 +104,78 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/**
- * Format transcript array into readable text
- */
-function formatTranscript(transcript: any[]): string {
-  if (!Array.isArray(transcript)) {
-    return String(transcript);
+function resolveMeetingId(body: StreamWebhookBody): string | null {
+  const candidates = [body.call?.id, body.call_cid];
+
+  for (const value of candidates) {
+    if (!value) continue;
+
+    if (value.includes(':')) {
+      return value.split(':').pop() || null;
+    }
+
+    return value;
   }
 
+  return null;
+}
+
+async function fetchAndFormatTranscript(url: string): Promise<string> {
+  const response = await fetch(url, { cache: 'no-store' });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch transcript file: ${response.status} ${response.statusText}`);
+  }
+
+  const rawText = await response.text();
+  const entries = rawText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line) as TranscriptLine;
+      } catch {
+        return null;
+      }
+    })
+    .filter((entry): entry is TranscriptLine => Boolean(entry));
+
+  return formatTranscript(entries);
+}
+
+function formatTranscript(transcript: TranscriptLine[]): string {
   return transcript
     .map((entry) => {
-      const speaker = entry.user?.name || entry.user?.id || 'Unknown';
-      const text = entry.text || '';
-      const timestamp = entry.start_time
-        ? new Date(entry.start_time).toLocaleTimeString()
-        : '';
+      const speaker = entry.user?.name || entry.user?.id || entry.speaker_id || 'Unknown speaker';
+      const text = entry.text?.trim() || '';
+      const timestamp = formatTimestamp(entry.start_time);
+
+      if (!text) {
+        return null;
+      }
+
       return `[${timestamp}] ${speaker}: ${text}`;
     })
+    .filter((line): line is string => Boolean(line))
     .join('\n');
 }
 
-/**
- * Verify webhook signature (implement in production)
- */
-function verifySignature(signature: string | null, body: any): boolean {
-  // TODO: Implement signature verification using Stream secret
-  // This is crucial for production to prevent unauthorized webhook calls
-  return true; // Disabled for development
+function formatTimestamp(value?: string): string {
+  if (!value) {
+    return '--:--';
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
 }

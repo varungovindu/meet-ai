@@ -1,12 +1,12 @@
 /**
  * Video Meeting Room
  *
- * Live video conferencing using Stream Video SDK.
+ * Live video conferencing using Stream Video SDK with shared transcription.
  */
 
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 import {
@@ -53,7 +53,7 @@ function MeetingControls({
   const handleScreenShare = async () => {
     try {
       if (screenShareState?.isEnabled) {
-        await screenShareState?.screenShare.disable();
+        await screenShareState.screenShare.disable();
       } else {
         await screenShareState?.screenShare.enable();
       }
@@ -63,9 +63,8 @@ function MeetingControls({
   };
 
   const handleReaction = () => {
-    // Send emoji reaction through call
     try {
-      call?.sendReaction({ type: 'emoji', emoji_code: '👋' });
+      call?.sendReaction({ type: 'emoji', emoji_code: 'wave' });
     } catch (error) {
       console.error('Reaction error:', error);
     }
@@ -96,14 +95,14 @@ function MeetingControls({
           )}
         </button>
 
-        <button 
+        <button
           onClick={handleReaction}
           className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 transition-all duration-200 hover:bg-slate-200"
         >
           <Smile size={20} className="text-slate-700" />
         </button>
 
-        <button 
+        <button
           onClick={handleScreenShare}
           className={`flex h-12 w-12 items-center justify-center rounded-full transition-all duration-200 ${
             screenShareState?.isEnabled ? 'bg-blue-500 hover:bg-blue-600' : 'bg-slate-100 hover:bg-slate-200'
@@ -143,6 +142,11 @@ function MeetingControls({
   );
 }
 
+function isAlreadyTranscribingError(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return message.includes('already') && message.includes('transcription');
+}
+
 export default function MeetingRoomPage({
   params,
 }: {
@@ -152,17 +156,20 @@ export default function MeetingRoomPage({
   const router = useRouter();
   const [client, setClient] = useState<StreamVideoClient | null>(null);
   const [call, setCall] = useState<Call | null>(null);
-  const [transcript, setTranscript] = useState('');
+  const [liveTranscriptLines, setLiveTranscriptLines] = useState<string[]>([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [hasTranscriptionCapture, setHasTranscriptionCapture] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
   const [copied, setCopied] = useState(false);
   const [roomError, setRoomError] = useState('');
   const [showTranscriptPanel, setShowTranscriptPanel] = useState(true);
+  const [transcriptStatus, setTranscriptStatus] = useState('Preparing live transcript...');
+
+  const liveTranscript = useMemo(() => liveTranscriptLines.join('\n'), [liveTranscriptLines]);
 
   const { data: streamData } = trpc.stream.getToken.useQuery();
   const { data: meeting } = trpc.meetings.getById.useQuery({ id: meetingId });
   const updateStatus = trpc.meetings.updateStatus.useMutation();
-  const updateTranscript = trpc.meetings.updateTranscript.useMutation();
   const completeMeeting = trpc.meetings.completeMeeting.useMutation();
 
   useEffect(() => {
@@ -194,6 +201,7 @@ export default function MeetingRoomPage({
       .join({ create: true })
       .then(() => {
         setCall(videoCall);
+        setTranscriptStatus('Connecting to shared meeting transcript...');
         updateStatus.mutate({ id: meetingId, status: 'active' });
       })
       .catch((error) => {
@@ -205,7 +213,75 @@ export default function MeetingRoomPage({
       videoCall.leave();
       setCall(null);
     };
-  }, [client, meetingId]);
+  }, [client, meetingId, updateStatus]);
+
+  useEffect(() => {
+    if (!call) return;
+
+    let mounted = true;
+
+    const unsubscribers = [
+      call.on('call.closed_caption', (event) => {
+        const caption = event.closed_caption;
+        const speaker = caption.user?.name || caption.user?.id || caption.speaker_id || 'Speaker';
+        const line = `[${formatClock(caption.start_time)}] ${speaker}: ${caption.text}`;
+
+        if (!mounted || !caption.text?.trim()) {
+          return;
+        }
+
+        setHasTranscriptionCapture(true);
+        setLiveTranscriptLines((prev) => {
+          if (prev[prev.length - 1] === line) {
+            return prev;
+          }
+
+          return [...prev, line];
+        });
+      }),
+      call.on('call.transcription_started', () => {
+        if (!mounted) return;
+        setIsRecording(true);
+        setHasTranscriptionCapture(true);
+        setTranscriptStatus('Live transcript is running for everyone in the meeting.');
+      }),
+      call.on('call.transcription_stopped', () => {
+        if (!mounted) return;
+        setIsRecording(false);
+        setTranscriptStatus('Transcript stopped. Restart it if you still need captions.');
+      }),
+      call.on('call.transcription_failed', () => {
+        if (!mounted) return;
+        setIsRecording(false);
+        setTranscriptStatus('Stream transcription is unavailable right now.');
+        setRoomError('Stream transcription could not be started for this call.');
+      }),
+    ];
+
+    const startSharedTranscription = async () => {
+      try {
+        await call.startTranscription({ enable_closed_captions: true });
+      } catch (error) {
+        if (isAlreadyTranscribingError(error)) {
+          setIsRecording(true);
+          setHasTranscriptionCapture(true);
+          setTranscriptStatus('Live transcript is already active for this meeting.');
+          return;
+        }
+
+        console.error('Failed to start transcription:', error);
+        setTranscriptStatus('Automatic transcript could not start.');
+        setRoomError('Automatic meeting transcription is not available. Check Stream transcription settings.');
+      }
+    };
+
+    startSharedTranscription();
+
+    return () => {
+      mounted = false;
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [call]);
 
   const handleLeaveOrEndMeeting = async () => {
     if (!call || isEnding) return;
@@ -213,18 +289,12 @@ export default function MeetingRoomPage({
     setRoomError('');
 
     try {
-      if ((window as any).currentRecognition) {
-        (window as any).currentRecognition.stop();
-      }
-      setIsRecording(false);
-
-      const hasTranscript = transcript.trim().length > 0;
-
-      if (hasTranscript) {
-        await updateTranscript.mutateAsync({
-          id: meetingId,
-          transcript,
-        });
+      if (isRecording) {
+        try {
+          await call.stopTranscription();
+        } catch (error) {
+          console.error('Failed to stop transcription cleanly:', error);
+        }
       }
 
       try {
@@ -233,15 +303,10 @@ export default function MeetingRoomPage({
         await call.leave();
       }
 
-      try {
+      if (hasTranscriptionCapture) {
+        await updateStatus.mutateAsync({ id: meetingId, status: 'processing' });
+      } else {
         await completeMeeting.mutateAsync({ id: meetingId });
-      } catch (error) {
-        console.error('Failed to complete meeting on end:', error);
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : 'Failed to generate summary automatically. You can add transcript and generate summary from meeting details.';
-        setRoomError(errorMessage);
       }
 
       router.push(`/meetings/${meetingId}`);
@@ -264,62 +329,20 @@ export default function MeetingRoomPage({
     }
   };
 
-  const handleStartTranscript = () => {
-    if (typeof window === 'undefined') return;
+  const handleTranscriptToggle = async () => {
+    if (!call) return;
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setRoomError('');
 
-    if (!SpeechRecognition) {
-      alert('Speech recognition not supported in this browser');
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
-    recognition.onresult = (event: any) => {
-      let final = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcriptPart = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          final += transcriptPart + ' ';
-        }
+    try {
+      if (isRecording) {
+        await call.stopTranscription();
+      } else {
+        await call.startTranscription({ enable_closed_captions: true });
       }
-
-      if (final) {
-        setTranscript((prev) => prev + final);
-      }
-    };
-
-    recognition.onerror = () => {
-      setIsRecording(false);
-    };
-
-    recognition.onend = () => {
-      setIsRecording(false);
-    };
-
-    recognition.start();
-    setIsRecording(true);
-    (window as any).currentRecognition = recognition;
-  };
-
-  const handleStopTranscript = () => {
-    if ((window as any).currentRecognition) {
-      (window as any).currentRecognition.stop();
-    }
-    setIsRecording(false);
-  };
-
-  const handleTranscriptToggle = () => {
-    if (isRecording) {
-      handleStopTranscript();
-    } else {
-      handleStartTranscript();
+    } catch (error) {
+      console.error('Failed to toggle transcription:', error);
+      setRoomError('Could not change the transcription state for this meeting.');
     }
   };
 
@@ -364,17 +387,22 @@ export default function MeetingRoomPage({
           )}
 
           <div className="flex-1 px-4 pb-32 pt-4 md:px-6 lg:px-8">
-            <div className={`mx-auto grid h-[calc(100vh-11rem)] w-full max-w-[1440px] gap-4 ${showTranscriptPanel ? 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]' : 'grid-cols-1'}`}>
+            <div
+              className={`mx-auto grid h-[calc(100vh-11rem)] w-full max-w-[1440px] gap-4 ${
+                showTranscriptPanel ? 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]' : 'grid-cols-1'
+              }`}
+            >
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-black shadow-xl">
                 <SpeakerLayout />
               </div>
 
               {showTranscriptPanel && (
                 <aside className="hidden h-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:block">
-                  <h3 className="mb-3 text-base font-semibold text-slate-900">Live Transcript</h3>
-                  <div className="h-[calc(100%-2.5rem)] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <h3 className="mb-1 text-base font-semibold text-slate-900">Live Transcript</h3>
+                  <p className="mb-3 text-xs text-slate-500">{transcriptStatus}</p>
+                  <div className="h-[calc(100%-3.25rem)] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <p className="whitespace-pre-wrap text-sm text-slate-700">
-                      {transcript || 'Transcript will appear here once started.'}
+                      {liveTranscript || 'Spoken captions will appear here once Stream transcription starts.'}
                     </p>
                   </div>
                 </aside>
@@ -393,10 +421,11 @@ export default function MeetingRoomPage({
 
           {showTranscriptPanel && (
             <aside className="fixed inset-x-4 bottom-24 z-20 max-h-52 rounded-2xl border border-slate-200 bg-white p-3 shadow-md xl:hidden">
-              <h3 className="mb-2 text-sm font-semibold text-slate-900">Live Transcript</h3>
-              <div className="h-[calc(100%-2rem)] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+              <h3 className="mb-1 text-sm font-semibold text-slate-900">Live Transcript</h3>
+              <p className="mb-2 text-[11px] text-slate-500">{transcriptStatus}</p>
+              <div className="h-[calc(100%-2.75rem)] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
                 <p className="whitespace-pre-wrap text-xs text-slate-700">
-                  {transcript || 'Transcript will appear here once started.'}
+                  {liveTranscript || 'Spoken captions will appear here once Stream transcription starts.'}
                 </p>
               </div>
             </aside>
@@ -405,4 +434,23 @@ export default function MeetingRoomPage({
       </StreamCall>
     </StreamVideo>
   );
+}
+
+function formatClock(value?: string) {
+  if (!value) {
+    return '--:--';
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
 }

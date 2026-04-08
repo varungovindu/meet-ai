@@ -306,6 +306,72 @@ export async function updateMeetingTranscript(
 }
 
 /**
+ * Update meeting transcript/recording artifacts captured by Stream.
+ */
+export async function updateMeetingArtifacts(
+  meetingId: string,
+  updates: {
+    transcript?: string;
+    transcriptUrl?: string;
+    recordingUrl?: string;
+    status?: MeetingStatus;
+    endTime?: Date;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const [meeting] = await db
+      .select({ id: meetings.id })
+      .from(meetings)
+      .where(eq(meetings.id, meetingId))
+      .limit(1);
+
+    if (!meeting) {
+      return {
+        success: false,
+        error: 'Meeting not found',
+      };
+    }
+
+    const payload: Partial<typeof meetings.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+
+    if (typeof updates.transcript === 'string') {
+      payload.transcript = updates.transcript.trim();
+    }
+
+    if (typeof updates.transcriptUrl === 'string') {
+      payload.transcriptUrl = updates.transcriptUrl;
+    }
+
+    if (typeof updates.recordingUrl === 'string') {
+      payload.recordingUrl = updates.recordingUrl;
+    }
+
+    if (updates.status) {
+      payload.status = updates.status;
+    }
+
+    if (updates.endTime) {
+      payload.endTime = updates.endTime;
+    }
+
+    await db
+      .update(meetings)
+      .set(payload)
+      .where(eq(meetings.id, meetingId));
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating meeting artifacts:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update meeting artifacts',
+    };
+  }
+}
+
+/**
  * Update meeting status
  */
 export async function updateMeetingStatus(
