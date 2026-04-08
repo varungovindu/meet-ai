@@ -9,6 +9,7 @@
 import { use, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
+import { useSession } from '@/lib/auth-client';
 import {
   StreamVideo,
   StreamVideoClient,
@@ -20,16 +21,22 @@ import {
 } from '@stream-io/video-react-sdk';
 import '@stream-io/video-react-sdk/dist/css/styles.css';
 import {
+  Copy,
+  DoorOpen,
   Mic,
   MicOff,
-  Video,
-  VideoOff,
-  Smile,
   Monitor,
   PhoneOff,
+  Smile,
+  Sparkles,
+  Subtitles,
+  UserRound,
+  Video,
+  VideoOff,
 } from 'lucide-react';
 
 function MeetingControls({
+  isHost,
   showTranscriptPanel,
   setShowTranscriptPanel,
   isRecording,
@@ -37,6 +44,7 @@ function MeetingControls({
   handleLeaveOrEndMeeting,
   isEnding,
 }: {
+  isHost: boolean;
   showTranscriptPanel: boolean;
   setShowTranscriptPanel: (value: boolean | ((prev: boolean) => boolean)) => void;
   isRecording: boolean;
@@ -70,72 +78,94 @@ function MeetingControls({
     }
   };
 
+  const baseButton =
+    'flex h-14 w-14 items-center justify-center rounded-2xl border transition-all duration-200';
+
   return (
-    <div className="meeting-dock fixed bottom-6 left-1/2 z-30 -translate-x-1/2 transition-all duration-200 ease-in-out hover:scale-105">
-      <div className="flex items-center gap-4 rounded-full border border-slate-200 bg-white px-6 py-3 shadow-md">
+    <div className="fixed inset-x-4 bottom-4 z-30 md:inset-x-auto md:left-1/2 md:-translate-x-1/2">
+      <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-center gap-3 rounded-[28px] border border-slate-800/70 bg-slate-950/90 px-4 py-4 shadow-2xl backdrop-blur md:flex-nowrap md:px-5">
         <button
           onClick={() => microphone.toggle()}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 transition-all duration-200 hover:bg-slate-200"
+          className={`${baseButton} ${
+            isMute
+              ? 'border-red-500/40 bg-red-500/15 text-red-300 hover:bg-red-500/20'
+              : 'border-slate-700 bg-slate-900 text-slate-100 hover:border-slate-600 hover:bg-slate-800'
+          }`}
+          type="button"
         >
-          {isMute ? (
-            <MicOff size={20} className="text-red-600" />
-          ) : (
-            <Mic size={20} className="text-slate-700" />
-          )}
+          {isMute ? <MicOff size={20} /> : <Mic size={20} />}
         </button>
 
         <button
           onClick={() => camera.toggle()}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 transition-all duration-200 hover:bg-slate-200"
+          className={`${baseButton} ${
+            isCameraOff
+              ? 'border-amber-500/40 bg-amber-500/15 text-amber-200 hover:bg-amber-500/20'
+              : 'border-slate-700 bg-slate-900 text-slate-100 hover:border-slate-600 hover:bg-slate-800'
+          }`}
+          type="button"
         >
-          {isCameraOff ? (
-            <VideoOff size={20} className="text-red-600" />
-          ) : (
-            <Video size={20} className="text-slate-700" />
-          )}
-        </button>
-
-        <button
-          onClick={handleReaction}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 transition-all duration-200 hover:bg-slate-200"
-        >
-          <Smile size={20} className="text-slate-700" />
+          {isCameraOff ? <VideoOff size={20} /> : <Video size={20} />}
         </button>
 
         <button
           onClick={handleScreenShare}
-          className={`flex h-12 w-12 items-center justify-center rounded-full transition-all duration-200 ${
-            screenShareState?.isEnabled ? 'bg-blue-500 hover:bg-blue-600' : 'bg-slate-100 hover:bg-slate-200'
+          className={`${baseButton} ${
+            screenShareState?.isEnabled
+              ? 'border-sky-400/40 bg-sky-500/20 text-sky-100 hover:bg-sky-500/30'
+              : 'border-slate-700 bg-slate-900 text-slate-100 hover:border-slate-600 hover:bg-slate-800'
           }`}
           type="button"
         >
-          <Monitor size={20} className={screenShareState?.isEnabled ? 'text-white' : 'text-slate-700'} />
+          <Monitor size={20} />
         </button>
 
-        <div className="mx-2 h-8 w-px bg-slate-200" />
+        <button
+          onClick={handleReaction}
+          className={`${baseButton} border-slate-700 bg-slate-900 text-slate-100 hover:border-slate-600 hover:bg-slate-800`}
+          type="button"
+        >
+          <Smile size={20} />
+        </button>
 
         <button
           onClick={() => setShowTranscriptPanel((prev) => !prev)}
-          className="h-10 rounded-full bg-slate-100 px-4 text-sm font-medium text-slate-900 transition-all duration-200 hover:bg-slate-200"
+          className="flex h-14 items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-4 text-sm font-medium text-slate-100 transition-all duration-200 hover:border-slate-600 hover:bg-slate-800"
+          type="button"
         >
+          <Subtitles size={18} />
           {showTranscriptPanel ? 'Hide Transcript' : 'Show Transcript'}
         </button>
 
-        <button
-          onClick={handleTranscriptToggle}
-          className={`h-10 rounded-full px-4 text-sm font-medium transition-all duration-200 ${
-            isRecording ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
-          }`}
-        >
-          {isRecording ? 'Stop Transcript' : 'Start Transcript'}
-        </button>
+        {isHost ? (
+          <button
+            onClick={handleTranscriptToggle}
+            className={`flex h-14 items-center gap-2 rounded-2xl border px-4 text-sm font-medium transition-all duration-200 ${
+              isRecording
+                ? 'border-red-500/40 bg-red-500/20 text-red-100 hover:bg-red-500/30'
+                : 'border-emerald-500/30 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25'
+            }`}
+            type="button"
+          >
+            <Sparkles size={18} />
+            {isRecording ? 'Stop Transcript' : 'Start Transcript'}
+          </button>
+        ) : (
+          <div className="flex h-14 items-center rounded-2xl border border-slate-700 bg-slate-900 px-4 text-sm text-slate-300">
+            Host manages transcript
+          </div>
+        )}
 
         <button
           onClick={handleLeaveOrEndMeeting}
           disabled={isEnding}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 transition-all duration-200 hover:bg-red-600 disabled:opacity-60"
+          className={`flex h-14 items-center gap-2 rounded-2xl px-5 text-sm font-semibold text-white transition-all duration-200 disabled:opacity-60 ${
+            isHost ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-700 hover:bg-slate-600'
+          }`}
+          type="button"
         >
-          <PhoneOff size={20} className="text-white" />
+          {isHost ? <PhoneOff size={18} /> : <DoorOpen size={18} />}
+          {isEnding ? (isHost ? 'Ending...' : 'Leaving...') : isHost ? 'End Meeting' : 'Leave Call'}
         </button>
       </div>
     </div>
@@ -154,6 +184,7 @@ export default function MeetingRoomPage({
 }) {
   const { id: meetingId } = use(params);
   const router = useRouter();
+  const { data: session } = useSession();
   const [client, setClient] = useState<StreamVideoClient | null>(null);
   const [call, setCall] = useState<Call | null>(null);
   const [liveTranscriptLines, setLiveTranscriptLines] = useState<string[]>([]);
@@ -162,7 +193,7 @@ export default function MeetingRoomPage({
   const [copied, setCopied] = useState(false);
   const [roomError, setRoomError] = useState('');
   const [showTranscriptPanel, setShowTranscriptPanel] = useState(true);
-  const [transcriptStatus, setTranscriptStatus] = useState('Preparing live transcript...');
+  const [transcriptStatus, setTranscriptStatus] = useState('Preparing shared transcript...');
   const activeCallRef = useRef<Call | null>(null);
 
   const liveTranscript = useMemo(() => liveTranscriptLines.join('\n'), [liveTranscriptLines]);
@@ -177,6 +208,9 @@ export default function MeetingRoomPage({
   const updateStatus = trpc.meetings.updateStatus.useMutation();
   const updateTranscript = trpc.meetings.updateTranscript.useMutation();
   const completeMeeting = trpc.meetings.completeMeeting.useMutation();
+
+  const isHost = Boolean(meeting?.isOwner);
+  const currentUserName = session?.user?.name || session?.user?.email || streamData?.userName || 'Participant';
 
   useEffect(() => {
     if (!streamData) return;
@@ -210,13 +244,14 @@ export default function MeetingRoomPage({
       .then(() => {
         if (didCleanup) return;
         setCall(videoCall);
-        setTranscriptStatus('Connecting to shared meeting transcript...');
-        updateStatus.mutate({ id: meetingId, status: 'active' });
+        if (meeting?.isOwner) {
+          updateStatus.mutate({ id: meetingId, status: 'active' });
+        }
       })
       .catch((error) => {
         if (didCleanup) return;
         console.error('Failed to join call:', error);
-        setRoomError('Failed to join call. Please refresh and try again.');
+        setRoomError('Failed to join the call. Please refresh and try again.');
       });
 
     return () => {
@@ -227,7 +262,7 @@ export default function MeetingRoomPage({
       videoCall.leave();
       setCall(null);
     };
-  }, [client, meetingId]);
+  }, [client, meetingId, meeting?.isOwner]);
 
   useEffect(() => {
     if (!call) return;
@@ -255,28 +290,35 @@ export default function MeetingRoomPage({
       call.on('call.transcription_started', () => {
         if (!mounted) return;
         setIsRecording(true);
-        setTranscriptStatus('Live transcript is running for everyone in the meeting.');
+        setTranscriptStatus('Live transcript is running for everyone in the room.');
       }),
       call.on('call.transcription_stopped', () => {
         if (!mounted) return;
         setIsRecording(false);
-        setTranscriptStatus('Transcript stopped. Restart it if you still need captions.');
+        setTranscriptStatus('Transcript is paused. The host can start it again.');
       }),
       call.on('call.transcription_failed', () => {
         if (!mounted) return;
         setIsRecording(false);
-        setTranscriptStatus('Stream transcription is unavailable right now.');
-        setRoomError('Stream transcription could not be started for this call.');
+        setTranscriptStatus('Transcript is unavailable right now.');
+        if (isHost) {
+          setRoomError('Stream transcription could not be started for this call.');
+        }
       }),
     ];
 
     const startSharedTranscription = async () => {
+      if (!isHost) {
+        setTranscriptStatus('Waiting for the host to start shared transcript...');
+        return;
+      }
+
       try {
         await call.startTranscription({ enable_closed_captions: true });
       } catch (error) {
         if (isAlreadyTranscribingError(error)) {
           setIsRecording(true);
-          setTranscriptStatus('Live transcript is already active for this meeting.');
+          setTranscriptStatus('Shared transcript is already active.');
           return;
         }
 
@@ -292,15 +334,23 @@ export default function MeetingRoomPage({
       mounted = false;
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, [call]);
+  }, [call, isHost]);
 
   const handleLeaveOrEndMeeting = async () => {
     if (!call || isEnding) return;
+
     setIsEnding(true);
     setRoomError('');
-    const transcriptToSave = liveTranscript.trim();
 
     try {
+      if (!isHost) {
+        await call.leave();
+        router.push(`/meetings/${meetingId}`);
+        return;
+      }
+
+      const transcriptToSave = liveTranscript.trim();
+
       if (isRecording) {
         try {
           await call.stopTranscription();
@@ -323,11 +373,10 @@ export default function MeetingRoomPage({
       }
 
       await completeMeeting.mutateAsync({ id: meetingId });
-
       router.push(`/meetings/${meetingId}`);
     } catch (error) {
-      console.error('Failed to end meeting:', error);
-      setRoomError('Could not end meeting cleanly. Please try again.');
+      console.error('Failed to leave or end meeting:', error);
+      setRoomError(isHost ? 'Could not end the meeting cleanly. Please try again.' : 'Could not leave the call cleanly. Please try again.');
       setIsEnding(false);
     }
   };
@@ -340,12 +389,12 @@ export default function MeetingRoomPage({
       setTimeout(() => setCopied(false), 1500);
     } catch (error) {
       console.error('Copy link failed:', error);
-      setRoomError('Could not copy link. Please copy URL from the browser bar.');
+      setRoomError('Could not copy the invite link. Please copy the URL from the browser bar.');
     }
   };
 
   const handleTranscriptToggle = async () => {
-    if (!call) return;
+    if (!call || !isHost) return;
 
     setRoomError('');
 
@@ -357,14 +406,18 @@ export default function MeetingRoomPage({
       }
     } catch (error) {
       console.error('Failed to toggle transcription:', error);
-      setRoomError('Could not change the transcription state for this meeting.');
+      setRoomError('Could not change the transcript state for this meeting.');
     }
   };
 
   if (!client || !call) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-slate-600">Loading meeting room...</p>
+      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,#dbeafe_0%,#e2e8f0_35%,#f8fafc_100%)] px-6">
+        <div className="rounded-3xl border border-white/70 bg-white/85 px-8 py-10 text-center shadow-xl backdrop-blur">
+          <p className="text-sm uppercase tracking-[0.28em] text-slate-500">Meet AI</p>
+          <h1 className="mt-3 text-2xl font-semibold text-slate-950">Preparing your meeting room</h1>
+          <p className="mt-2 text-sm text-slate-600">Connecting video, transcript, and session controls...</p>
+        </div>
       </div>
     );
   }
@@ -372,60 +425,130 @@ export default function MeetingRoomPage({
   return (
     <StreamVideo client={client}>
       <StreamCall call={call}>
-        <div className="relative flex min-h-screen flex-col bg-slate-100">
-          <div className="flex items-center justify-between border-b border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
-            <div className="min-w-0">
-              <h1 className="truncate text-xl font-semibold text-slate-900">{meeting?.name || 'Meeting Room'}</h1>
-              <p className="text-xs text-slate-500">Live conference session</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleCopyInviteLink}
-                className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all duration-200 hover:bg-slate-200"
-              >
-                {copied ? 'Copied!' : 'Copy meeting link'}
-              </button>
-              <button
-                onClick={handleLeaveOrEndMeeting}
-                disabled={isEnding}
-                className="rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-red-600 disabled:opacity-60"
-              >
-                {isEnding ? 'Leaving...' : 'Leave'}
-              </button>
-            </div>
-          </div>
+        <main className="min-h-screen bg-[radial-gradient(circle_at_top,#cbd5e1_0%,#e2e8f0_25%,#f8fafc_62%)] pb-32">
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-5 md:px-6 lg:px-8">
+            <section className="overflow-hidden rounded-[32px] border border-white/70 bg-white/85 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur">
+              <div className="flex flex-col gap-6 border-b border-slate-200/80 bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_50%,#0f766e_100%)] px-6 py-6 text-white lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-2xl">
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-slate-100">
+                    <Sparkles size={14} />
+                    Smart meeting room
+                  </div>
+                  <h1 className="text-3xl font-semibold tracking-tight">{meeting?.name || 'Meeting Room'}</h1>
+                  <p className="mt-2 max-w-xl text-sm text-slate-200">
+                    {isHost
+                      ? 'You are hosting this call. End the meeting when everyone is done to save the transcript and generate the summary.'
+                      : 'You are joining as a participant. You can follow the live transcript here, and the saved summary will appear after the host finishes the meeting.'}
+                  </p>
+                </div>
 
-          {roomError && (
-            <div className="mx-6 mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
-              {roomError}
-            </div>
-          )}
-
-          <div className="flex-1 px-4 pb-32 pt-4 md:px-6 lg:px-8">
-            <div
-              className={`mx-auto grid h-[calc(100vh-11rem)] w-full max-w-[1440px] gap-4 ${
-                showTranscriptPanel ? 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]' : 'grid-cols-1'
-              }`}
-            >
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-black shadow-xl">
-                <SpeakerLayout />
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-300">Role</p>
+                    <p className="mt-2 text-sm font-semibold text-white">{isHost ? 'Host' : 'Guest'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-300">Transcript</p>
+                    <p className="mt-2 text-sm font-semibold text-white">{isRecording ? 'Live' : 'Standby'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-300">You</p>
+                    <p className="mt-2 truncate text-sm font-semibold text-white">{currentUserName}</p>
+                  </div>
+                </div>
               </div>
 
-              {showTranscriptPanel && (
-                <aside className="hidden h-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:block">
-                  <h3 className="mb-1 text-base font-semibold text-slate-900">Live Transcript</h3>
-                  <p className="mb-3 text-xs text-slate-500">{transcriptStatus}</p>
-                  <div className="h-[calc(100%-3.25rem)] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="whitespace-pre-wrap text-sm text-slate-700">
-                      {liveTranscript || 'Spoken captions will appear here once Stream transcription starts.'}
+              <div className="flex flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
+                    <UserRound size={16} />
+                    {isHost ? 'Host controls meeting actions' : 'Guest access to transcript and summary'}
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 font-medium text-emerald-700">
+                    <Subtitles size={16} />
+                    {transcriptStatus}
+                  </span>
+                </div>
+
+                <button
+                  onClick={handleCopyInviteLink}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50"
+                  type="button"
+                >
+                  <Copy size={16} />
+                  {copied ? 'Invite link copied' : 'Copy invite link'}
+                </button>
+              </div>
+            </section>
+
+            {roomError && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">
+                {roomError}
+              </div>
+            )}
+
+            <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="overflow-hidden rounded-[30px] border border-slate-200 bg-slate-950 shadow-[0_18px_50px_rgba(15,23,42,0.22)]">
+                <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 text-white">
+                  <div>
+                    <p className="text-sm font-semibold">Live stage</p>
+                    <p className="text-xs text-slate-300">Professional layout for everyone in the room</p>
+                  </div>
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200">
+                    {isHost ? 'Host session' : 'Participant session'}
+                  </span>
+                </div>
+                <div className="h-[58vh] min-h-[420px] bg-black">
+                  <SpeakerLayout />
+                </div>
+              </div>
+
+              <aside className={`${showTranscriptPanel ? 'flex' : 'hidden'} flex-col overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.12)] xl:flex`}>
+                <div className="border-b border-slate-200 px-5 py-4">
+                  <h2 className="text-lg font-semibold text-slate-950">Meeting notes</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Everyone in the call can follow the live transcript. Saved notes appear after the meeting ends.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Status</p>
+                    <p className="mt-2 text-sm font-medium text-slate-700">{transcriptStatus}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">After meeting</p>
+                    <p className="mt-2 text-sm font-medium text-slate-700">
+                      Transcript and summary stay available at `/meetings/{meetingId}` for invited participants too.
                     </p>
                   </div>
-                </aside>
-              )}
-            </div>
+                </div>
+
+                <div className="flex-1 overflow-hidden px-5 py-4">
+                  <div className="h-full overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                      {liveTranscript || 'Spoken captions will appear here once the shared transcript starts.'}
+                    </p>
+                  </div>
+                </div>
+              </aside>
+            </section>
+
+            {showTranscriptPanel && (
+              <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm xl:hidden">
+                <h2 className="text-base font-semibold text-slate-950">Transcript</h2>
+                <p className="mt-1 text-sm text-slate-500">{transcriptStatus}</p>
+                <div className="mt-4 max-h-56 overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {liveTranscript || 'Spoken captions will appear here once the shared transcript starts.'}
+                  </p>
+                </div>
+              </section>
+            )}
           </div>
 
           <MeetingControls
+            isHost={isHost}
             showTranscriptPanel={showTranscriptPanel}
             setShowTranscriptPanel={setShowTranscriptPanel}
             isRecording={isRecording}
@@ -433,19 +556,7 @@ export default function MeetingRoomPage({
             handleLeaveOrEndMeeting={handleLeaveOrEndMeeting}
             isEnding={isEnding}
           />
-
-          {showTranscriptPanel && (
-            <aside className="fixed inset-x-4 bottom-24 z-20 max-h-52 rounded-2xl border border-slate-200 bg-white p-3 shadow-md xl:hidden">
-              <h3 className="mb-1 text-sm font-semibold text-slate-900">Live Transcript</h3>
-              <p className="mb-2 text-[11px] text-slate-500">{transcriptStatus}</p>
-              <div className="h-[calc(100%-2.75rem)] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
-                <p className="whitespace-pre-wrap text-xs text-slate-700">
-                  {liveTranscript || 'Spoken captions will appear here once Stream transcription starts.'}
-                </p>
-              </div>
-            </aside>
-          )}
-        </div>
+        </main>
       </StreamCall>
     </StreamVideo>
   );

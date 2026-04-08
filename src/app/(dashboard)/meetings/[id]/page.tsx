@@ -132,6 +132,7 @@ export default function MeetingDetailPage({
     );
   }
 
+  const isOwner = Boolean(meeting.isOwner);
   const canGenerateSummary = Boolean(meeting.transcript?.trim()) && meeting.status !== 'processing';
 
   return (
@@ -171,7 +172,7 @@ export default function MeetingDetailPage({
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            {meeting.status === 'upcoming' && (
+            {meeting.status === 'upcoming' && isOwner && (
               <>
                 <button
                   onClick={() => updateStatus.mutate({ id, status: 'active' })}
@@ -196,16 +197,18 @@ export default function MeetingDetailPage({
                 >
                   Join Video Call
                 </Link>
-                <button
-                  onClick={() => setIsUpdatingTranscript(true)}
-                  className="rounded-xl bg-slate-100 px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 hover:bg-slate-200"
-                >
-                  Add Transcript
-                </button>
+                {isOwner && (
+                  <button
+                    onClick={() => setIsUpdatingTranscript(true)}
+                    className="rounded-xl bg-slate-100 px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 hover:bg-slate-200"
+                  >
+                    Add Transcript
+                  </button>
+                )}
               </>
             )}
 
-            {canGenerateSummary && (
+            {canGenerateSummary && isOwner && (
               <button
                 onClick={handleComplete}
                 disabled={completeMeeting.isPending}
@@ -215,13 +218,15 @@ export default function MeetingDetailPage({
               </button>
             )}
 
-            <button
-              onClick={handleDelete}
-              disabled={deleteMeeting.isPending}
-              className="rounded-xl bg-red-50 px-4 py-2 text-red-600 shadow-sm transition-all duration-200 hover:bg-red-100 disabled:opacity-50"
-            >
-              {deleteMeeting.isPending ? 'Deleting...' : 'Delete Meeting'}
-            </button>
+            {isOwner && (
+              <button
+                onClick={handleDelete}
+                disabled={deleteMeeting.isPending}
+                className="rounded-xl bg-red-50 px-4 py-2 text-red-600 shadow-sm transition-all duration-200 hover:bg-red-100 disabled:opacity-50"
+              >
+                {deleteMeeting.isPending ? 'Deleting...' : 'Delete Meeting'}
+              </button>
+            )}
           </div>
 
           <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -361,6 +366,12 @@ export default function MeetingDetailPage({
         {meeting.status === 'processing' && (
           <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-center">
             <p className="text-yellow-600">AI is generating the meeting summary. This may take a minute.</p>
+          </div>
+        )}
+
+        {!isOwner && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-center">
+            <p className="text-blue-700">You are viewing this meeting as a participant. Transcript, summary, and recording stay visible here after the host finishes the meeting.</p>
           </div>
         )}
       </div>

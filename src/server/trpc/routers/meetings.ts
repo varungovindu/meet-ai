@@ -77,12 +77,10 @@ export const meetingsRouter = router({
         throw new Error('Meeting not found');
       }
 
-      // Verify ownership
-      if (meeting.userId !== ctx.session.user.id) {
-        throw new Error('Unauthorized');
-      }
-
-      return meeting;
+      return {
+        ...meeting,
+        isOwner: meeting.userId === ctx.session.user.id,
+      };
     }),
 
   /**
