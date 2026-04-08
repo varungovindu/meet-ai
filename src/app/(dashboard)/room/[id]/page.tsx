@@ -6,7 +6,7 @@
 
 'use client';
 
-import { use, useEffect, useMemo, useState } from 'react';
+import { use, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 import {
@@ -164,10 +164,16 @@ export default function MeetingRoomPage({
   const [roomError, setRoomError] = useState('');
   const [showTranscriptPanel, setShowTranscriptPanel] = useState(true);
   const [transcriptStatus, setTranscriptStatus] = useState('Preparing live transcript...');
+  const activeCallRef = useRef<Call | null>(null);
 
   const liveTranscript = useMemo(() => liveTranscriptLines.join('\n'), [liveTranscriptLines]);
 
-  const { data: streamData } = trpc.stream.getToken.useQuery();
+  const { data: streamData } = trpc.stream.getToken.useQuery(undefined, {
+    staleTime: Infinity,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  });
   const { data: meeting } = trpc.meetings.getById.useQuery({ id: meetingId });
   const updateStatus = trpc.meetings.updateStatus.useMutation();
   const completeMeeting = trpc.meetings.completeMeeting.useMutation();
@@ -196,24 +202,32 @@ export default function MeetingRoomPage({
     if (!client || !meetingId) return;
 
     const videoCall = client.call('default', meetingId);
+    activeCallRef.current = videoCall;
+    let didCleanup = false;
 
     videoCall
       .join({ create: true })
       .then(() => {
+        if (didCleanup) return;
         setCall(videoCall);
         setTranscriptStatus('Connecting to shared meeting transcript...');
         updateStatus.mutate({ id: meetingId, status: 'active' });
       })
       .catch((error) => {
+        if (didCleanup) return;
         console.error('Failed to join call:', error);
         setRoomError('Failed to join call. Please refresh and try again.');
       });
 
     return () => {
+      didCleanup = true;
+      if (activeCallRef.current === videoCall) {
+        activeCallRef.current = null;
+      }
       videoCall.leave();
       setCall(null);
     };
-  }, [client, meetingId, updateStatus]);
+  }, [client, meetingId]);
 
   useEffect(() => {
     if (!call) return;
