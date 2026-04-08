@@ -6,7 +6,7 @@
 
 'use client';
 
-import { use, useState } from 'react';
+import { use, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '@/lib/trpc';
@@ -28,7 +28,15 @@ export default function MeetingDetailPage({
   const [actionError, setActionError] = useState('');
 
   const utils = trpc.useUtils();
-  const { data: meeting, isLoading } = trpc.meetings.getById.useQuery({ id });
+  const queryOptions = useMemo(
+    () => ({
+      refetchInterval: (query: { state: { data?: { status?: string } } }) =>
+        query.state.data?.status === 'processing' ? 4000 : false,
+      refetchOnWindowFocus: true,
+    }),
+    []
+  );
+  const { data: meeting, isLoading } = trpc.meetings.getById.useQuery({ id }, queryOptions);
 
   const updateTranscript = trpc.meetings.updateTranscript.useMutation({
     onSuccess: () => {

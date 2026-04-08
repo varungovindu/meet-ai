@@ -158,7 +158,6 @@ export default function MeetingRoomPage({
   const [call, setCall] = useState<Call | null>(null);
   const [liveTranscriptLines, setLiveTranscriptLines] = useState<string[]>([]);
   const [isRecording, setIsRecording] = useState(false);
-  const [hasTranscriptionCapture, setHasTranscriptionCapture] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
   const [copied, setCopied] = useState(false);
   const [roomError, setRoomError] = useState('');
@@ -176,6 +175,7 @@ export default function MeetingRoomPage({
   });
   const { data: meeting } = trpc.meetings.getById.useQuery({ id: meetingId });
   const updateStatus = trpc.meetings.updateStatus.useMutation();
+  const updateTranscript = trpc.meetings.updateTranscript.useMutation();
   const completeMeeting = trpc.meetings.completeMeeting.useMutation();
 
   useEffect(() => {
@@ -244,7 +244,6 @@ export default function MeetingRoomPage({
           return;
         }
 
-        setHasTranscriptionCapture(true);
         setLiveTranscriptLines((prev) => {
           if (prev[prev.length - 1] === line) {
             return prev;
@@ -256,7 +255,6 @@ export default function MeetingRoomPage({
       call.on('call.transcription_started', () => {
         if (!mounted) return;
         setIsRecording(true);
-        setHasTranscriptionCapture(true);
         setTranscriptStatus('Live transcript is running for everyone in the meeting.');
       }),
       call.on('call.transcription_stopped', () => {
@@ -278,7 +276,6 @@ export default function MeetingRoomPage({
       } catch (error) {
         if (isAlreadyTranscribingError(error)) {
           setIsRecording(true);
-          setHasTranscriptionCapture(true);
           setTranscriptStatus('Live transcript is already active for this meeting.');
           return;
         }
@@ -301,6 +298,7 @@ export default function MeetingRoomPage({
     if (!call || isEnding) return;
     setIsEnding(true);
     setRoomError('');
+    const transcriptToSave = liveTranscript.trim();
 
     try {
       if (isRecording) {
@@ -311,17 +309,20 @@ export default function MeetingRoomPage({
         }
       }
 
+      if (transcriptToSave) {
+        await updateTranscript.mutateAsync({
+          id: meetingId,
+          transcript: transcriptToSave,
+        });
+      }
+
       try {
         await call.endCall();
       } catch {
         await call.leave();
       }
 
-      if (hasTranscriptionCapture) {
-        await updateStatus.mutateAsync({ id: meetingId, status: 'processing' });
-      } else {
-        await completeMeeting.mutateAsync({ id: meetingId });
-      }
+      await completeMeeting.mutateAsync({ id: meetingId });
 
       router.push(`/meetings/${meetingId}`);
     } catch (error) {
