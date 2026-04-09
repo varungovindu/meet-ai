@@ -10,9 +10,21 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { trpc } from '@/lib/trpc';
 
+function toDatetimeLocalValue(value: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const year = value.getFullYear();
+  const month = pad(value.getMonth() + 1);
+  const day = pad(value.getDate());
+  const hour = pad(value.getHours());
+  const minute = pad(value.getMinutes());
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
 export default function MeetingsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [meetingName, setMeetingName] = useState('');
+  const [meetingMode, setMeetingMode] = useState<'now' | 'schedule'>('now');
+  const [scheduledAt, setScheduledAt] = useState(() => toDatetimeLocalValue(new Date()));
   const [createError, setCreateError] = useState('');
   const [deleteError, setDeleteError] = useState('');
 
@@ -23,6 +35,8 @@ export default function MeetingsPage() {
       utils.meetings.list.invalidate();
       setIsCreating(false);
       setMeetingName('');
+      setMeetingMode('now');
+      setScheduledAt(toDatetimeLocalValue(new Date()));
       setCreateError('');
     },
     onError: (error) => {
@@ -47,6 +61,7 @@ export default function MeetingsPage() {
 
     createMeeting.mutate({
       name: meetingName,
+      startTime: meetingMode === 'now' ? new Date() : new Date(scheduledAt),
     });
   };
 
@@ -92,13 +107,61 @@ export default function MeetingsPage() {
                   required
                 />
               </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-900">Meeting Type</label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setMeetingMode('now')}
+                    className={`rounded-xl border px-4 py-4 text-left transition-all duration-200 ${
+                      meetingMode === 'now'
+                        ? 'border-blue-600 bg-blue-50 shadow-sm'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <p className="font-medium text-slate-900">Start now</p>
+                    <p className="mt-1 text-sm text-slate-500">Create the room immediately and join right away.</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMeetingMode('schedule')}
+                    className={`rounded-xl border px-4 py-4 text-left transition-all duration-200 ${
+                      meetingMode === 'schedule'
+                        ? 'border-blue-600 bg-blue-50 shadow-sm'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <p className="font-medium text-slate-900">Schedule</p>
+                    <p className="mt-1 text-sm text-slate-500">Pick a date and time for later and add it to calendar.</p>
+                  </button>
+                </div>
+              </div>
+              {meetingMode === 'schedule' && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-900">Scheduled Time</label>
+                  <input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-900"
+                    required={meetingMode === 'schedule'}
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    This time will be used for meeting scheduling and Google Calendar.
+                  </p>
+                </div>
+              )}
               <div className="flex gap-4">
                 <button
                   type="submit"
                   disabled={createMeeting.isPending}
                   className="rounded-xl bg-blue-600 px-6 py-2 font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {createMeeting.isPending ? 'Creating...' : 'Create Meeting'}
+                  {createMeeting.isPending
+                    ? 'Creating...'
+                    : meetingMode === 'now'
+                    ? 'Start Meeting'
+                    : 'Schedule Meeting'}
                 </button>
                 <button
                   type="button"
