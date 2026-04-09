@@ -228,6 +228,8 @@ export default function MeetingDetailPage({
   }
 
   const isOwner = Boolean(meeting.isOwner);
+  const meetingStartTime = new Date(meeting.startTime);
+  const isScheduledForFuture = meeting.status === 'upcoming' && meetingStartTime.getTime() > Date.now();
   const canGenerateSummary = Boolean(meeting.transcript?.trim()) && meeting.status !== 'processing';
   const exportMeeting = {
     name: meeting.name ?? 'Meeting',
@@ -256,7 +258,10 @@ export default function MeetingDetailPage({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">{meeting.name}</h1>
-              <p className="mt-2 text-sm text-slate-500">{new Date(meeting.startTime).toLocaleString()}</p>
+              <p className="mt-2 text-sm text-slate-500">{meetingStartTime.toLocaleString()}</p>
+              {isScheduledForFuture && (
+                <p className="mt-2 text-sm text-amber-600">This meeting will unlock at the scheduled time.</p>
+              )}
             </div>
             <span
               className={`rounded-xl px-3 py-1 text-sm font-medium ${
@@ -276,7 +281,7 @@ export default function MeetingDetailPage({
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            {meeting.status === 'upcoming' && isOwner && (
+            {meeting.status === 'upcoming' && isOwner && !isScheduledForFuture && (
               <>
                 <button
                   onClick={() => updateStatus.mutate({ id, status: 'active' })}
@@ -290,6 +295,22 @@ export default function MeetingDetailPage({
                 >
                   Join Video Call
                 </Link>
+              </>
+            )}
+            {meeting.status === 'upcoming' && isOwner && isScheduledForFuture && (
+              <>
+                <button
+                  disabled
+                  className="rounded-xl bg-slate-100 px-4 py-2 text-slate-400 shadow-sm opacity-70"
+                >
+                  Start Meeting
+                </button>
+                <button
+                  disabled
+                  className="rounded-xl bg-slate-100 px-4 py-2 text-slate-400 shadow-sm opacity-70"
+                >
+                  Join Video Call
+                </button>
               </>
             )}
 
@@ -325,8 +346,8 @@ export default function MeetingDetailPage({
             {isOwner && (
               <button
                 onClick={handleDelete}
-                disabled={deleteMeeting.isPending}
-                className="rounded-xl bg-red-50 px-4 py-2 text-red-600 shadow-sm transition-all duration-200 hover:bg-red-100 disabled:opacity-50"
+                disabled={deleteMeeting.isPending || isScheduledForFuture}
+                className="rounded-xl bg-red-50 px-4 py-2 text-red-600 shadow-sm transition-all duration-200 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {deleteMeeting.isPending ? 'Deleting...' : 'Delete Meeting'}
               </button>

@@ -186,6 +186,7 @@ export default function MeetingRoomPage({
 }) {
   const { id: meetingId } = use(params);
   const router = useRouter();
+  const [now, setNow] = useState(() => Date.now());
   const [client, setClient] = useState<StreamVideoClient | null>(null);
   const [call, setCall] = useState<Call | null>(null);
   const [liveTranscriptLines, setLiveTranscriptLines] = useState<string[]>([]);
@@ -211,6 +212,16 @@ export default function MeetingRoomPage({
   const completeMeeting = trpc.meetings.completeMeeting.useMutation();
 
   const isHost = Boolean(meeting?.isOwner);
+  const scheduledStart = meeting?.startTime ? new Date(meeting.startTime).getTime() : null;
+  const isLockedUntilStart = meeting?.status === 'upcoming' && scheduledStart !== null && scheduledStart > now;
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!streamData) return;
@@ -233,7 +244,7 @@ export default function MeetingRoomPage({
   }, [streamData]);
 
   useEffect(() => {
-    if (!client || !meetingId) return;
+    if (!client || !meetingId || isLockedUntilStart) return;
 
     const videoCall = client.call('default', meetingId);
     activeCallRef.current = videoCall;
@@ -262,7 +273,7 @@ export default function MeetingRoomPage({
       videoCall.leave();
       setCall(null);
     };
-  }, [client, meetingId, meeting?.isOwner]);
+  }, [client, isLockedUntilStart, meetingId, meeting?.isOwner]);
 
   useEffect(() => {
     if (!call) return;
@@ -409,6 +420,29 @@ export default function MeetingRoomPage({
       setRoomError('Could not change the transcript state for this meeting.');
     }
   };
+
+  if (isLockedUntilStart && meeting?.startTime) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-950 px-6">
+        <div className="w-full max-w-xl rounded-3xl border border-slate-800 bg-slate-900 px-8 py-10 text-center shadow-xl">
+          <h1 className="text-2xl font-semibold text-white">{meeting.name || 'Scheduled meeting'}</h1>
+          <p className="mt-3 text-sm text-slate-300">This room will open at {new Date(meeting.startTime).toLocaleString()}.</p>
+          <p className="mt-2 text-sm text-slate-400">
+            {isHost ? 'You can start the call once the scheduled time begins.' : 'Please come back when the host starts the meeting.'}
+          </p>
+          <div className="mt-6">
+            <button
+              onClick={() => router.push(`/meetings/${meetingId}`)}
+              className="rounded-2xl bg-slate-800 px-5 py-3 text-sm font-medium text-white transition-all duration-200 hover:bg-slate-700"
+              type="button"
+            >
+              Back to meeting
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!client || !call) {
     return (
