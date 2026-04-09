@@ -1,314 +1,243 @@
-# Meet-AI Clone – Smart Video Conferencing with AI Notes
+# Meet-AI
 
-A **complete, production-ready, zero-cost** AI-enhanced video conferencing platform with two modes:
-1. **Human Meeting Mode**: Real-time video with AI-powered meeting summaries
-2. **AI Voice Agent Mode**: Interactive voice conversations with customizable AI personas
+Smart video meetings with live transcription, AI summaries, and AI voice agents.
 
-🎉 **FULLY COMPLETE APP WITH:**
-- ✅ Authentication (Better Auth with login/signup)
-- ✅ Real-time Video (Stream Video SDK)
-- ✅ Live Transcription (Web Speech API)
-- ✅ AI Summaries (Ollama)
-- ✅ Voice AI Agents (Web Speech + Ollama)
-- ✅ Protected Routes & Middleware
-- ✅ Complete Database Schema
-- ✅ Full tRPC API
-- ✅ Modern UI with Tailwind
+## Overview
 
----
+Meet-AI provides two core experiences:
 
-## 🚀 Quick Start (3 Steps)
+1. Human meeting mode
+- Real-time video calls via Stream
+- Live closed-caption transcription
+- Transcript persistence
+- AI-generated post-meeting summary
 
-### 1. Install Dependencies
+2. AI voice agent mode
+- User-defined AI personas
+- Voice/text interaction
+- Conversation history persistence
+
+## Complete Tech Stack
+
+### Frontend
+- Next.js 15 (App Router)
+- React 18
+- TypeScript
+- Tailwind CSS
+- Lucide icons
+- Web Speech API (browser speech recognition + speech synthesis for AI voice screen)
+
+### Backend/API
+- tRPC v11
+- Zod validation
+- Next.js Route Handlers
+
+### Authentication
+- Better Auth
+- Email/password authentication
+- Session-based auth (database-backed sessions)
+
+### Real-time Communication
+- Stream Video SDK
+   - @stream-io/video-react-sdk (client)
+   - @stream-io/node-sdk (server)
+
+### AI
+- Groq (primary provider for deployment/cloud)
+- Ollama (local fallback or explicit remote endpoint)
+
+### Database
+- Drizzle ORM
+- libSQL client (@libsql/client)
+- SQLite dialect (Drizzle config)
+
+### Tooling
+- ESLint
+- Drizzle Kit
+- PostCSS + Autoprefixer
+
+## Architecture
+
+### Auth Flow
+1. Client uses Better Auth React client APIs for sign in/up/out.
+2. Better Auth route handlers process auth requests.
+3. Session is resolved server-side in tRPC context for protected procedures.
+
+### Stream Call Flow
+1. Room page calls `stream.getToken` (protected tRPC endpoint).
+2. Server ensures Stream user exists and generates Stream token.
+3. Client creates `StreamVideoClient` with API key + token.
+4. Client creates/joins call with meeting id.
+5. Host starts transcription; participants receive live captions.
+
+### Transcript Flow
+1. Stream emits `call.closed_caption` events.
+2. App builds transcript lines with timestamp + speaker metadata from Stream.
+3. On meeting end, transcript is saved via `meetings.updateTranscript`.
+4. `completeMeeting` triggers AI summary generation from stored transcript.
+
+### AI Flow
+1. Server receives request (summary, Q&A, productivity, or voice response).
+2. `generateAIResponse` tries Groq first.
+3. If Groq is unavailable and fallback conditions allow, uses Ollama.
+4. Response is returned and persisted where required.
+
+## Key Features
+
+- Secure login/signup and protected routes
+- Meeting creation/scheduling
+- Live video, screen share, reactions
+- Shared live transcript inside meeting room
+- AI-generated meeting summary
+- Ask-AI over meeting context
+- Productivity insights (decisions, action items, follow-up draft)
+- Notion push for meeting insights
+- AI voice agents with persona instructions
+
+## Project Structure
+
+```text
+src/
+   app/
+      (auth)/
+      (dashboard)/
+         room/[id]/                 # Stream meeting room + live transcript UI
+      api/
+         auth/[...all]/route.ts     # Better Auth handler
+         trpc/[trpc]/route.ts       # tRPC handler
+   components/
+   lib/
+   server/
+      db/
+         index.ts                   # Drizzle + libSQL setup
+         schema.ts                  # users/sessions/accounts/meetings/agents/messages
+      lib/
+         auth.ts                    # Better Auth server config
+         stream.ts                  # Stream server client + token creation
+      services/
+         meeting.service.ts         # meeting lifecycle + summary trigger
+      trpc/
+         routers/
+            meetings.ts
+            agents.ts
+            stream.ts
+            ai.ts
+   services/
+      ai.service.ts                # Groq + Ollama integration
+```
+
+## Environment Variables
+
+Create `.env` from `.env.example` and configure the following:
+
+### Core
+- `NEXT_PUBLIC_APP_URL`
+- `BETTER_AUTH_URL`
+- `BETTER_AUTH_SECRET`
+
+### Database
+- `DATABASE_URL`
+
+Note: Current code uses Drizzle with libSQL client and SQLite dialect. Ensure `DATABASE_URL` is compatible with your libSQL/Turso setup.
+
+### Stream
+- `NEXT_PUBLIC_STREAM_API_KEY`
+- `STREAM_API_SECRET`
+
+### AI
+- `GROQ_API_KEY`
+- `GROQ_MODEL`
+- `OLLAMA_BASE_URL`
+- `OLLAMA_MODEL`
+
+### Optional Integrations
+- `NOTION_API_KEY`
+- `NOTION_DATABASE_ID`
+
+## Local Setup
+
+1. Install dependencies
+
 ```bash
 npm install
 ```
 
-### 2. Configure Environment
+2. Configure env
+
 ```bash
 cp .env.example .env
-# Edit .env with your credentials (see COMPLETE_SETUP.md)
 ```
 
-### 3. Start Everything
-```bash
-# Terminal 1: Start Ollama
-ollama serve
+3. Start local AI if using Ollama fallback
 
-# Terminal 2: Initialize DB & Start App
+```bash
+ollama serve
+ollama pull phi3
+```
+
+4. Sync DB schema
+
+```bash
 npm run db:push
+```
+
+5. Start app
+
+```bash
 npm run dev
 ```
 
-Visit **[http://localhost:3000](http://localhost:3000)** and sign up!
-
-**📖 For detailed setup:** Read [COMPLETE_SETUP.md](./COMPLETE_SETUP.md)
-
----
-
-## 🛠️ Tech Stack
-
-- **Framework**: Next.js 15 (App Router)
-- **Language**: TypeScript
-- **Database**: PostgreSQL (Neon) with Drizzle ORM
-- **API Layer**: tRPC v11
-- **Authentication**: Better Auth
-- **Video**: Stream Video SDK
-- **AI**: Ollama (local, phi3/mistral)
-- **State Management**: TanStack Query
-- **Styling**: Tailwind CSS
-
-## 📦 Prerequisites
-
-Before you begin, ensure you have:
-
-1. **Node.js** 18+ installed
-2. **PostgreSQL database** (free tier from [Neon](https://neon.tech))
-3. **Ollama** installed locally ([Download](https://ollama.ai))
-
-## 🔧 Installation
-
-### 1. Clone and Install Dependencies
+## Scripts
 
 ```bash
-cd meet-ai
-npm install
-```
+npm run dev
+npm run build
+npm run start
+npm run lint
 
-### 2. Set Up Environment Variables
-
-Create a `.env` file in the root directory:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your actual values:
-
-```env
-# Database (Get from Neon.tech)
-DATABASE_URL="postgresql://user:password@host/database?sslmode=require"
-
-# Ollama (Local AI)
-OLLAMA_BASE_URL="http://localhost:11434"
-OLLAMA_MODEL="phi3"
-
-# Gemini (Cloud AI for deployment)
-GEMINI_API_KEY="your-gemini-api-key"
-GEMINI_MODEL="gemini-1.5-pro"
-
-# Better Auth
-BETTER_AUTH_SECRET="your-random-secret-key-generate-this"
-BETTER_AUTH_URL="http://localhost:3000"
-
-# Stream Video SDK (Get from getstream.io)
-NEXT_PUBLIC_STREAM_API_KEY="your-stream-api-key"
-STREAM_API_SECRET="your-stream-api-secret"
-
-# App Configuration
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-```
-
-### 3. Install and Start Ollama
-
-**Download Ollama:**
-- Visit [ollama.ai](https://ollama.ai) and download for your OS
-- Install and start Ollama
-
-**Pull the AI model:**
-```bash
-ollama pull phi3
-# OR
-ollama pull mistral
-```
-
-**Verify Ollama is running:**
-```bash
-curl http://localhost:11434/api/tags
-```
-
-### 4. Set Up Database
-
-**Generate migration:**
-```bash
 npm run db:generate
-```
-
-**Push schema to database:**
-```bash
+npm run db:migrate
 npm run db:push
-```
-
-**Open Drizzle Studio (optional):**
-```bash
 npm run db:studio
 ```
 
-### 5. Start Development Server
+## Deployment Notes (Render)
+
+- Set all required environment variables in Render dashboard.
+- For production, configure Groq keys so AI does not depend on local Ollama.
+- Keep `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL` aligned to your deployed domain.
+- If favicon/logo is needed in browser tab, app metadata points to assets in `public/`.
+
+## Troubleshooting
+
+### AI Not Responding
+- Verify `GROQ_API_KEY` in deployment.
+- For local fallback, verify Ollama is reachable:
 
 ```bash
-npm run dev
-```
-
-Visit [http://localhost:3000](http://localhost:3000)
-
-## 📁 Project Structure
-
-```
-meet-ai/
-├── src/
-│   ├── app/                    # Next.js App Router pages
-│   │   ├── api/
-│   │   │   └── trpc/[trpc]/   # tRPC API route handler
-│   │   ├── dashboard/          # Dashboard page
-│   │   ├── meetings/           # Meetings pages
-│   │   ├── agents/             # AI agents management
-│   │   ├── ai-agent/           # Voice agent interface
-│   │   ├── layout.tsx          # Root layout
-│   │   ├── page.tsx            # Home page
-│   │   └── providers.tsx       # tRPC & React Query providers
-│   │
-│   ├── server/
-│   │   ├── db/
-│   │   │   ├── index.ts        # Database connection
-│   │   │   └── schema.ts       # Drizzle schema
-│   │   ├── trpc/
-│   │   │   ├── context.ts      # tRPC context
-│   │   │   ├── root.ts         # tRPC initialization
-│   │   │   ├── router.ts       # Main app router
-│   │   │   └── routers/        # Feature routers
-│   │   ├── services/
-│   │   │   ├── ai.service.ts        # Ollama integration
-│   │   │   ├── meeting.service.ts   # Meeting business logic
-│   │   │   └── agent.service.ts     # Agent CRUD operations
-│   │   └── lib/
-│   │       └── auth.ts         # Better Auth config
-│   │
-│   ├── services/
-│   │   └── ai.service.ts       # AI service (Ollama calls)
-│   │
-│   └── lib/
-│       └── trpc.ts             # tRPC client setup
-│
-├── drizzle.config.ts           # Drizzle configuration
-├── package.json
-└── README.md
-```
-
-## 🎯 Usage
-
-### Creating AI Agents
-
-1. Navigate to `/agents`
-2. Click "New Agent"
-3. Enter agent name and instructions
-4. Example instructions:
-   ```
-   You are a helpful technical assistant with expertise in 
-   software development. Be concise, friendly, and provide 
-   practical advice.
-   ```
-
-### Human Meetings Workflow
-
-1. Go to `/meetings`
-2. Click "New Meeting"
-3. Enter meeting name
-4. Click "Start Meeting" when ready
-5. Add transcript (manually or via Stream SDK integration)
-6. Click "Complete & Generate Summary"
-7. AI generates summary using local Ollama
-
-### AI Voice Agent
-
-1. Go to `/ai-agent`
-2. Select an AI agent from dropdown
-3. Click "Start Speaking" and allow microphone access
-4. Speak your question
-5. AI responds with voice and text
-6. Continue conversation naturally
-
-## 🔑 Key Files Explained
-
-### Database Schema (`server/db/schema.ts`)
-- **users**: User accounts (Better Auth integration)
-- **agents**: AI agent personas with custom instructions
-- **meetings**: Meeting records with transcript and summary
-
-### AI Service (`services/ai.service.ts`)
-- `generateMeetingSummary()`: Post-meeting summarization
-- `generateAgentResponse()`: AI voice agent conversations
-- `checkOllamaHealth()`: Verify Ollama is running
-
-### Meeting Service (`server/services/meeting.service.ts`)
-- `completeMeetingAndGenerateSummary()`: Main workflow
-- Handles status transitions: `active` → `processing` → `completed`
-
-### tRPC Routers
-- **meetings**: Create, list, complete, update status/transcript
-- **agents**: Full CRUD operations
-
-## 🐛 Troubleshooting
-
-### Ollama Connection Issues
-```bash
-# Check if Ollama is running
 curl http://localhost:11434/api/tags
-
-# Start Ollama (if not running)
-ollama serve
 ```
 
-### Database Issues
-```bash
-# Reset database and re-run migrations
-npm run db:push
-```
+### Stream Call Issues
+- Confirm Stream API key/secret values.
+- Ensure authenticated user can fetch `stream.getToken`.
 
-### Speech Recognition Not Working
-- Use Chrome or Edge browser
-- Allow microphone permissions
-- Check browser console for errors
+### Transcript Not Starting
+- Only host starts transcription.
+- Ensure Stream transcription is enabled for your account/config.
 
-## 📝 Scripts
+### Auth Session Problems
+- Check `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, and `NEXT_PUBLIC_APP_URL` consistency.
 
-```bash
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run start        # Start production server
-npm run lint         # Run ESLint
+## Current Status
 
-npm run db:generate  # Generate Drizzle migrations
-npm run db:migrate   # Run migrations
-npm run db:push      # Push schema to database
-npm run db:studio    # Open Drizzle Studio
-```
+Implemented and working:
+- Better Auth session auth
+- Stream real-time calls
+- Live transcript capture from Stream caption events
+- AI summary/Q&A/productivity/voice-agent flows
+- Drizzle ORM schema and tRPC routes
 
-## 🚧 Roadmap
-
-- [ ] Stream Video SDK integration for live video
-- [ ] Webhook handler for real-time transcript capture
-- [ ] Authentication UI (login/signup pages)
-- [ ] Meeting recordings storage
-- [ ] Agent voice customization
-- [ ] Multi-language support
-- [ ] Export summaries as PDF
-
-## 📄 License
+## License
 
 MIT
-
-## 🤝 Contributing
-
-Contributions welcome! Please open an issue or submit a pull request.
-
-## ⚠️ Important Notes
-
-- **Zero Cost**: This project uses only free tiers and local AI
-- **Ollama Required**: Must be running locally for AI features
-- **Browser Support**: Chrome/Edge recommended for voice features
-- **Development Only**: Better Auth and database need production setup
-
----
-
-Built with ❤️ using Next.js 15, Drizzle ORM, tRPC, and Ollama
