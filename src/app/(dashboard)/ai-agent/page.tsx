@@ -166,7 +166,7 @@ export default function AIAgentPage() {
   };
 
   return (
-    <main className="relative min-h-screen bg-slate-50 px-8 pb-32 pt-6">
+    <main className="relative min-h-screen bg-slate-50 px-8 py-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">AI Voice Agent</h1>
@@ -194,7 +194,7 @@ export default function AIAgentPage() {
             onClick={() => setShowTranscriptPanel((prev) => !prev)}
             className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all duration-200 hover:bg-slate-200"
           >
-            {showTranscriptPanel ? 'Hide Transcript' : 'Show Transcript'}
+            {showTranscriptPanel ? 'Hide' : 'Show'}
           </button>
         </div>
       </div>
@@ -207,8 +207,8 @@ export default function AIAgentPage() {
 
       <section className="mx-auto flex max-w-5xl flex-col items-center gap-8 pb-20">
         <div className="w-full rounded-xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-          <div className="mx-auto mb-6 flex h-40 w-40 items-center justify-center rounded-full bg-slate-100 text-6xl">
-            🤖
+          <div className="mx-auto mb-6 flex h-40 w-40 items-center justify-center rounded-full bg-blue-100 border-2 border-blue-200">
+            <span className="text-4xl font-bold text-blue-600">AI</span>
           </div>
           <h2 className="text-2xl font-bold text-slate-900">
             {selectedAgentId
@@ -223,44 +223,43 @@ export default function AIAgentPage() {
         </div>
 
         <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-          <div className="mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 text-3xl">
-            👤
+          <div className="mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 border-2 border-slate-200">
+            <span className="text-lg font-bold text-slate-600">YOU</span>
           </div>
           <p className="font-semibold text-slate-900">You</p>
           <p className="mt-2 text-sm text-slate-600">{transcript || 'Waiting for your voice...'}</p>
         </div>
       </section>
 
-      <div className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2 rounded-full border border-slate-200 bg-white px-6 py-3 shadow-md">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={startListening}
-            disabled={isListening || !selectedAgentId || isSpeaking}
-            className="h-10 w-10 rounded-full flex items-center justify-center bg-blue-600 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 disabled:opacity-50"
-          >
-            🎤
-          </button>
-          <button
-            onClick={stopSpeaking}
-            disabled={!isSpeaking}
-            className="h-10 rounded-full bg-slate-100 px-5 text-sm font-medium text-slate-900 transition-all duration-200 hover:bg-slate-200 disabled:opacity-50"
-          >
-            End Voice
-          </button>
-          <button
-            onClick={clearConversation}
-            className="h-10 rounded-full bg-red-500 px-5 text-sm font-medium text-white transition-all duration-200 hover:bg-red-600"
-          >
-            Clear
-          </button>
-        </div>
+      <div className="fixed bottom-6 left-64 right-6 z-30 mx-auto flex max-w-fit justify-center gap-3 rounded-full border border-slate-200 bg-white px-6 py-3 shadow-lg">
+        <button
+          onClick={startListening}
+          disabled={isListening || !selectedAgentId || isSpeaking}
+          className="relative h-12 px-6 rounded-full flex items-center justify-center gap-2 bg-blue-600 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 disabled:opacity-50"
+        >
+          <span className="text-lg">●</span>
+          {isListening ? 'Listening...' : 'Start'}
+        </button>
+        <button
+          onClick={stopSpeaking}
+          disabled={!isSpeaking}
+          className="h-12 rounded-full bg-slate-100 px-6 text-sm font-medium text-slate-900 transition-all duration-200 hover:bg-slate-200 disabled:opacity-50"
+        >
+          Stop
+        </button>
+        <button
+          onClick={clearConversation}
+          className="h-12 rounded-full bg-red-100 px-6 text-sm font-medium text-red-600 transition-all duration-200 hover:bg-red-200"
+        >
+          Clear
+        </button>
       </div>
 
       {showTranscriptPanel && (
-        <aside className="fixed right-6 top-24 z-20 h-[calc(100vh-9rem)] w-96 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <aside className="fixed right-6 top-24 z-20 w-96 max-h-[calc(100vh-10rem)] rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
           <h3 className="mb-3 text-base font-semibold text-slate-900">Transcript & Chat</h3>
 
-          <div className="mb-3 h-[calc(100%-8.5rem)] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="mb-3 h-64 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
             {conversation.length === 0 ? (
               <p className="text-sm text-slate-600">No conversation yet.</p>
             ) : (
@@ -301,16 +300,16 @@ export default function AIAgentPage() {
               type="text"
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
-              placeholder="Type your message..."
+              placeholder="Type message..."
               disabled={!selectedAgentId || isSpeaking}
-              className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+              className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400"
             />
             <button
               type="submit"
               disabled={!selectedAgentId || !textInput.trim() || isSpeaking}
               className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 disabled:opacity-50"
             >
-              Send
+              →
             </button>
           </form>
         </aside>

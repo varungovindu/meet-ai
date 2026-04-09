@@ -14,9 +14,9 @@ export default function DashboardLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-slate-950">
+      <div className="min-h-screen bg-slate-50">
         <AppSidebar />
-        <main className="ml-64 min-h-screen overflow-y-auto bg-slate-950">
+        <main className="ml-64 min-h-screen overflow-y-auto bg-slate-50">
           {children}
         </main>
       </div>

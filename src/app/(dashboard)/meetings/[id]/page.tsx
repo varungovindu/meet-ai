@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '@/lib/trpc';
 
-type DetailTab = 'summary' | 'transcript' | 'recording' | 'productivity' | 'ask-ai';
+type DetailTab = 'summary' | 'transcript' |  'productivity' | 'ask-ai';
 type MeetingAnswer = {
   question: string;
   answer: string;
@@ -381,7 +381,7 @@ export default function MeetingDetailPage({
 
         <div className="border-b border-slate-200">
           <div className="flex flex-wrap gap-2">
-            {(['summary', 'transcript', 'recording', 'productivity', 'ask-ai'] as DetailTab[]).map((tab) => (
+            {(['summary', 'transcript', 'productivity', 'ask-ai'] as DetailTab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -472,23 +472,6 @@ export default function MeetingDetailPage({
             </div>
           )}
 
-          {activeTab === 'recording' && (
-            <div>
-              <h2 className="mb-4 text-lg font-semibold text-slate-900">Recording</h2>
-              {meeting.recordingUrl ? (
-                <a
-                  href={meeting.recordingUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-block rounded-xl bg-blue-600 px-4 py-2 text-white shadow-sm transition-all duration-200 hover:bg-blue-700"
-                >
-                  Open Recording
-                </a>
-              ) : (
-                <p className="text-slate-500">No recording available for this meeting.</p>
-              )}
-            </div>
-          )}
 
           {activeTab === 'productivity' && (
             <div>
