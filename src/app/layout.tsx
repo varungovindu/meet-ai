@@ -14,6 +14,11 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Meet-AI - Smart Video Conferencing with AI Notes',
   description: 'Zero-cost AI-enhanced video conferencing platform with local AI processing',
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({

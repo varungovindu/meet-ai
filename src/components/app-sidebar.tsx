@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from '@/lib/auth-client';
@@ -24,8 +25,17 @@ export function AppSidebar() {
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-slate-200 bg-white px-4 py-6">
       <div className="mb-8">
         <Link href="/dashboard" className="block rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition-all duration-200 hover:bg-slate-50">
-          <p className="text-lg font-bold text-slate-900">Meet-AI</p>
-          <p className="text-xs text-slate-600">Smart Video Meetings</p>
+          <div className="mb-2 h-14 w-full overflow-hidden rounded-lg">
+            <Image
+              src="/logo.png"
+              alt="Meet-AI logo"
+              width={1200}
+              height={400}
+              className="h-full w-full object-cover object-center"
+              priority
+            />
+          </div>
+          <p className="text-center text-xs text-slate-600">Smart Video Meetings</p>
         </Link>
       </div>
 

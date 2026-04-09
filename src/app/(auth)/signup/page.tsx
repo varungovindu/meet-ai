@@ -5,6 +5,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signUp } from '@/lib/auth-client';
@@ -54,7 +55,17 @@ export default function SignupPage() {
     <main className="min-h-screen flex items-center justify-center p-8 bg-slate-50">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-2 text-slate-900">Meet-AI</h1>
+          <div className="mb-4 flex justify-center">
+            <Image
+              src="/logo.png"
+              alt="Meet-AI logo"
+              width={1200}
+              height={400}
+              className="h-24 w-[320px] max-w-full rounded-lg object-cover object-center sm:h-28 sm:w-[360px]"
+              priority
+            />
+          </div>
+          <h1 className="sr-only">Meet-AI</h1>
           <p className="text-slate-600">Create your account</p>
         </div>
 
