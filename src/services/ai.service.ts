@@ -323,6 +323,58 @@ Format your response in a clear, professional manner with:
 }
 
 /**
+ * Answer questions using meeting transcript and summary context.
+ */
+export async function answerMeetingQuestion(input: {
+  question: string;
+  transcript?: string | null;
+  summary?: string | null;
+}): Promise<{ success: true; answer: string; provider: AIProvider } | { success: false; error: string }> {
+  const transcript = input.transcript?.trim();
+  const summary = input.summary?.trim();
+
+  if (!transcript && !summary) {
+    return {
+      success: false,
+      error: 'This meeting does not have enough context yet. Add a transcript or summary first.',
+    };
+  }
+
+  const systemInstructions = `You answer questions about a meeting using only the provided meeting context.
+If the answer is not supported by the context, say that clearly.
+Be concise, useful, and specific.
+Prefer bullet points when listing action items or decisions.`;
+
+  const prompt = [
+    'Meeting summary:',
+    summary || 'No summary available.',
+    '',
+    'Meeting transcript:',
+    transcript || 'No transcript available.',
+    '',
+    `Question: ${input.question.trim()}`,
+  ].join('\n');
+
+  const result = await generateAIResponse(prompt, systemInstructions, {
+    temperature: 0.3,
+    maxTokens: 700,
+  });
+
+  if (!result.success) {
+    return {
+      success: false,
+      error: 'error' in result ? result.error : 'Failed to answer meeting question',
+    };
+  }
+
+  return {
+    success: true,
+    answer: result.response,
+    provider: result.provider,
+  };
+}
+
+/**
  * Generate AI agent response for voice interaction
  */
 export async function generateAgentResponse(

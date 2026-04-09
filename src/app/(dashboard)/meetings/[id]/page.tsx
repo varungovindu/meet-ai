@@ -12,6 +12,11 @@ import Link from 'next/link';
 import { trpc } from '@/lib/trpc';
 
 type DetailTab = 'summary' | 'transcript' | 'recording' | 'ask-ai';
+type MeetingAnswer = {
+  question: string;
+  answer: string;
+  provider?: string;
+};
 
 export default function MeetingDetailPage({
   params,
@@ -25,6 +30,7 @@ export default function MeetingDetailPage({
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailTab>('summary');
   const [askInput, setAskInput] = useState('');
+  const [answers, setAnswers] = useState<MeetingAnswer[]>([]);
   const [actionError, setActionError] = useState('');
 
   const utils = trpc.useUtils();
@@ -78,6 +84,23 @@ export default function MeetingDetailPage({
       router.push('/meetings');
     },
   });
+  const askMeeting = trpc.ai.askMeeting.useMutation({
+    onSuccess: (result) => {
+      setAnswers((prev) => [
+        ...prev,
+        {
+          question: askInput.trim(),
+          answer: result.answer,
+          provider: result.provider,
+        },
+      ]);
+      setAskInput('');
+      setActionError('');
+    },
+    onError: (error) => {
+      setActionError(error.message || 'Failed to get meeting answer');
+    },
+  });
 
   const handleSaveTranscript = () => {
     if (!transcript.trim()) return;
@@ -109,6 +132,27 @@ export default function MeetingDetailPage({
     }
   };
 
+  const handleAskMeeting = () => {
+    const question = askInput.trim();
+    if (!question) return;
+
+    setActionError('');
+    askMeeting.mutate({
+      meetingId: id,
+      question,
+    });
+  };
+
+  const handleExportSummary = () => {
+    if (!meeting.summary) return;
+
+    downloadTextFile(`${slugify(exportMeeting.name)}-summary.md`, buildSummaryExport(exportMeeting));
+  };
+
+  const handleExportReport = () => {
+    downloadTextFile(`${slugify(exportMeeting.name)}-report.md`, buildMeetingReport(exportMeeting));
+  };
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-50 px-8 py-6">
@@ -134,6 +178,13 @@ export default function MeetingDetailPage({
 
   const isOwner = Boolean(meeting.isOwner);
   const canGenerateSummary = Boolean(meeting.transcript?.trim()) && meeting.status !== 'processing';
+  const exportMeeting = {
+    name: meeting.name ?? 'Meeting',
+    startTime: meeting.startTime ?? new Date().toISOString(),
+    status: meeting.status ?? 'completed',
+    summary: meeting.summary ?? '',
+    transcript: meeting.transcript ?? '',
+  };
 
   return (
     <main className="min-h-screen bg-slate-50 px-8 py-6">
@@ -266,7 +317,24 @@ export default function MeetingDetailPage({
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           {activeTab === 'summary' && (
             <div>
-              <h2 className="mb-4 text-lg font-semibold text-slate-900">Summary</h2>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-slate-900">Summary</h2>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={handleExportSummary}
+                    disabled={!meeting.summary}
+                    className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all duration-200 hover:bg-slate-200 disabled:opacity-50"
+                  >
+                    Export Summary
+                  </button>
+                  <button
+                    onClick={handleExportReport}
+                    className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-700"
+                  >
+                    Export Report
+                  </button>
+                </div>
+              </div>
               {meeting.summary ? (
                 <div className="space-y-3 text-slate-600 leading-relaxed">
                   {meeting.summary
@@ -354,11 +422,30 @@ export default function MeetingDetailPage({
                 />
                 <button
                   type="button"
-                  className="mt-3 rounded-xl bg-slate-100 px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 hover:bg-slate-200"
+                  onClick={handleAskMeeting}
+                  disabled={askMeeting.isPending || (!meeting.transcript && !meeting.summary)}
+                  className="mt-3 rounded-xl bg-slate-100 px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 hover:bg-slate-200 disabled:opacity-50"
                 >
-                  Use Voice Agent for Q&A
+                  {askMeeting.isPending ? 'Thinking...' : 'Ask AI'}
                 </button>
               </div>
+
+              {answers.length > 0 && (
+                <div className="mt-4 space-y-4">
+                  {answers
+                    .slice()
+                    .reverse()
+                    .map((entry, index) => (
+                      <div key={`${entry.question}-${index}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <p className="text-sm font-semibold text-slate-900">{entry.question}</p>
+                        <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{entry.answer}</p>
+                        {entry.provider && (
+                          <p className="mt-3 text-xs uppercase tracking-wide text-slate-400">Answered by {entry.provider}</p>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -377,4 +464,58 @@ export default function MeetingDetailPage({
       </div>
     </main>
   );
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'meeting';
+}
+
+function downloadTextFile(filename: string, content: string) {
+  const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildSummaryExport(meeting: {
+  name: string;
+  startTime: Date | string;
+  summary?: string | null;
+}) {
+  return `# ${meeting.name}
+
+Date: ${new Date(meeting.startTime).toLocaleString()}
+
+## Summary
+
+${meeting.summary || 'No summary available.'}
+`;
+}
+
+function buildMeetingReport(meeting: {
+  name: string;
+  startTime: Date | string;
+  status: string;
+  summary?: string | null;
+  transcript?: string | null;
+}) {
+  return `# ${meeting.name}
+
+Date: ${new Date(meeting.startTime).toLocaleString()}
+Status: ${meeting.status}
+
+## Summary
+
+${meeting.summary || 'No summary available.'}
+
+## Transcript
+
+${meeting.transcript || 'No transcript available.'}
+`;
 }

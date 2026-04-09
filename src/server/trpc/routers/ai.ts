@@ -6,8 +6,9 @@
 
 import { z } from 'zod';
 import { router, protectedProcedure } from '../root';
-import { generateAgentResponse } from '@/services/ai.service';
+import { answerMeetingQuestion, generateAgentResponse } from '@/services/ai.service';
 import { getAgentById } from '@/server/services/agent.service';
+import { getMeetingById } from '@/server/services/meeting.service';
 import { db } from '@/server/db';
 import { aiAgentMessages } from '@/server/db/schema';
 import { and, desc, eq } from 'drizzle-orm';
@@ -57,6 +58,40 @@ export const aiRouter = router({
           provider: (message.provider as 'groq' | 'ollama' | null) || undefined,
           createdAt: message.createdAt,
         }));
+    }),
+
+  /**
+   * Ask questions about a meeting transcript/summary.
+   */
+  askMeeting: protectedProcedure
+    .input(
+      z.object({
+        meetingId: z.string(),
+        question: z.string().min(1),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const meeting = await getMeetingById(input.meetingId);
+
+      if (!meeting) {
+        throw new Error('Meeting not found');
+      }
+
+      const result = await answerMeetingQuestion({
+        question: input.question,
+        transcript: meeting.transcript,
+        summary: meeting.summary,
+      });
+
+      if (!result.success) {
+        const errorMessage = 'error' in result ? result.error : 'Failed to answer meeting question';
+        throw new Error(errorMessage);
+      }
+
+      return {
+        answer: result.answer,
+        provider: result.provider,
+      };
     }),
 
   /**
