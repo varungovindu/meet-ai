@@ -203,7 +203,7 @@ npm run db:studio
 
 ## Deployment Notes (Render)
 
-- Set all required environment variables in Render dashboard.
+- Set all required environment variables in Vercel dashboard.
 - For production, configure Groq keys so AI does not depend on local Ollama.
 - Keep `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL` aligned to your deployed domain.
 - If favicon/logo is needed in browser tab, app metadata points to assets in `public/`.
