@@ -11,11 +11,29 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '@/lib/trpc';
 
-type DetailTab = 'summary' | 'transcript' | 'recording' | 'ask-ai';
+type DetailTab = 'summary' | 'transcript' | 'recording' | 'productivity' | 'ask-ai';
 type MeetingAnswer = {
   question: string;
   answer: string;
   provider?: string;
+};
+type MeetingProductivity = {
+  overview: string;
+  decisions: string[];
+  actionItems: Array<{
+    owner: string;
+    task: string;
+    deadline: string;
+  }>;
+  followUps: string[];
+  followUpDraft: string;
+  provider?: string;
+};
+type GoogleCalendarMeeting = {
+  name: string;
+  startTime: Date | string;
+  endTime?: Date | string | null;
+  summary?: string | null;
 };
 
 export default function MeetingDetailPage({
@@ -31,6 +49,8 @@ export default function MeetingDetailPage({
   const [activeTab, setActiveTab] = useState<DetailTab>('summary');
   const [askInput, setAskInput] = useState('');
   const [answers, setAnswers] = useState<MeetingAnswer[]>([]);
+  const [productivity, setProductivity] = useState<MeetingProductivity | null>(null);
+  const [notionUrl, setNotionUrl] = useState('');
   const [actionError, setActionError] = useState('');
 
   const utils = trpc.useUtils();
@@ -101,6 +121,27 @@ export default function MeetingDetailPage({
       setActionError(error.message || 'Failed to get meeting answer');
     },
   });
+  const getMeetingProductivity = trpc.ai.getMeetingProductivity.useMutation({
+    onSuccess: (result) => {
+      setProductivity({
+        ...result.insights,
+        provider: result.provider,
+      });
+      setActionError('');
+    },
+    onError: (error) => {
+      setActionError(error.message || 'Failed to generate productivity insights');
+    },
+  });
+  const pushMeetingToNotion = trpc.ai.pushMeetingToNotion.useMutation({
+    onSuccess: (result) => {
+      setNotionUrl(result.url || '');
+      setActionError('');
+    },
+    onError: (error) => {
+      setActionError(error.message || 'Failed to push meeting to Notion');
+    },
+  });
 
   const handleSaveTranscript = () => {
     if (!transcript.trim()) return;
@@ -153,6 +194,16 @@ export default function MeetingDetailPage({
     downloadTextFile(`${slugify(exportMeeting.name)}-report.md`, buildMeetingReport(exportMeeting));
   };
 
+  const handleGenerateProductivity = () => {
+    setActionError('');
+    getMeetingProductivity.mutate({ meetingId: id });
+  };
+
+  const handlePushToNotion = () => {
+    setActionError('');
+    pushMeetingToNotion.mutate({ meetingId: id });
+  };
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-50 px-8 py-6">
@@ -181,10 +232,12 @@ export default function MeetingDetailPage({
   const exportMeeting = {
     name: meeting.name ?? 'Meeting',
     startTime: meeting.startTime ?? new Date().toISOString(),
+    endTime: meeting.endTime ?? null,
     status: meeting.status ?? 'completed',
     summary: meeting.summary ?? '',
     transcript: meeting.transcript ?? '',
   };
+  const googleCalendarUrl = buildGoogleCalendarUrl(exportMeeting);
 
   return (
     <main className="min-h-screen bg-slate-50 px-8 py-6">
@@ -278,6 +331,15 @@ export default function MeetingDetailPage({
                 {deleteMeeting.isPending ? 'Deleting...' : 'Delete Meeting'}
               </button>
             )}
+
+            <a
+              href={googleCalendarUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl bg-slate-100 px-4 py-2 text-slate-900 shadow-sm transition-all duration-200 hover:bg-slate-200"
+            >
+              Add to Google Calendar
+            </a>
           </div>
 
           <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -298,7 +360,7 @@ export default function MeetingDetailPage({
 
         <div className="border-b border-slate-200">
           <div className="flex flex-wrap gap-2">
-            {(['summary', 'transcript', 'recording', 'ask-ai'] as DetailTab[]).map((tab) => (
+            {(['summary', 'transcript', 'recording', 'productivity', 'ask-ai'] as DetailTab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -308,7 +370,7 @@ export default function MeetingDetailPage({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                {tab === 'ask-ai' ? 'Ask AI' : tab}
+                {tab === 'ask-ai' ? 'Ask AI' : tab === 'productivity' ? 'Productivity' : tab}
               </button>
             ))}
           </div>
@@ -407,6 +469,122 @@ export default function MeetingDetailPage({
             </div>
           )}
 
+          {activeTab === 'productivity' && (
+            <div>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Post-meeting productivity</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Turn this meeting into actions, decisions, and follow-up work.
+                  </p>
+                </div>
+                <button
+                  onClick={handleGenerateProductivity}
+                  disabled={getMeetingProductivity.isPending || (!meeting.transcript && !meeting.summary)}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {getMeetingProductivity.isPending ? 'Generating...' : productivity ? 'Refresh Productivity' : 'Generate Productivity'}
+                </button>
+              </div>
+
+              <div className="mb-4 flex flex-wrap gap-2">
+                <button
+                  onClick={handlePushToNotion}
+                  disabled={pushMeetingToNotion.isPending || (!meeting.transcript && !meeting.summary)}
+                  className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all duration-200 hover:bg-slate-200 disabled:opacity-50"
+                >
+                  {pushMeetingToNotion.isPending ? 'Pushing to Notion...' : 'Push Productivity to Notion'}
+                </button>
+                {notionUrl && (
+                  <a
+                    href={notionUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-700"
+                  >
+                    Open Notion Page
+                  </a>
+                )}
+              </div>
+
+              {productivity ? (
+                <div className="space-y-5">
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <h3 className="text-sm font-semibold text-slate-900">Overview</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">{productivity.overview}</p>
+                  </section>
+
+                  <section className="grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <h3 className="text-sm font-semibold text-slate-900">Decisions</h3>
+                      {productivity.decisions.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {productivity.decisions.map((item, index) => (
+                            <p key={`${item}-${index}`} className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                              {item}
+                            </p>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-slate-500">No decisions detected.</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <h3 className="text-sm font-semibold text-slate-900">Follow-ups</h3>
+                      {productivity.followUps.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {productivity.followUps.map((item, index) => (
+                            <p key={`${item}-${index}`} className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                              {item}
+                            </p>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-slate-500">No follow-up suggestions detected.</p>
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <h3 className="text-sm font-semibold text-slate-900">Action items</h3>
+                    {productivity.actionItems.length > 0 ? (
+                      <div className="mt-3 space-y-3">
+                        {productivity.actionItems.map((item, index) => (
+                          <div key={`${item.task}-${index}`} className="rounded-xl border border-slate-200 bg-white p-4">
+                            <p className="text-sm font-medium text-slate-900">{item.task}</p>
+                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                              <span className="rounded-full bg-slate-100 px-3 py-1">Owner: {item.owner}</span>
+                              <span className="rounded-full bg-slate-100 px-3 py-1">Deadline: {item.deadline}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-slate-500">No action items detected.</p>
+                    )}
+                  </section>
+
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold text-slate-900">Follow-up draft</h3>
+                      {productivity.provider && (
+                        <span className="text-xs uppercase tracking-wide text-slate-400">{productivity.provider}</span>
+                      )}
+                    </div>
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{productivity.followUpDraft}</p>
+                    </div>
+                  </section>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
+                  Generate post-meeting productivity outputs to extract action items, decisions, and a ready-to-send follow-up draft.
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'ask-ai' && (
             <div>
               <h2 className="mb-4 text-lg font-semibold text-slate-900">Ask AI</h2>
@@ -501,6 +679,7 @@ ${meeting.summary || 'No summary available.'}
 function buildMeetingReport(meeting: {
   name: string;
   startTime: Date | string;
+  endTime?: Date | string | null;
   status: string;
   summary?: string | null;
   transcript?: string | null;
@@ -518,4 +697,23 @@ ${meeting.summary || 'No summary available.'}
 
 ${meeting.transcript || 'No transcript available.'}
 `;
+}
+
+function buildGoogleCalendarUrl(meeting: GoogleCalendarMeeting) {
+  const start = new Date(meeting.startTime);
+  const end = meeting.endTime ? new Date(meeting.endTime) : new Date(start.getTime() + 60 * 60 * 1000);
+  const details = meeting.summary?.trim() || 'Meeting created in Meet-AI.';
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: meeting.name,
+    dates: `${toGoogleCalendarDate(start)}/${toGoogleCalendarDate(end)}`,
+    details,
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function toGoogleCalendarDate(value: Date) {
+  return value.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
 }

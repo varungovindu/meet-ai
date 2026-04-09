@@ -65,6 +65,18 @@ type AIResultWithProvider =
   | { success: true; response: string; provider: AIProvider }
   | { success: false; error: string };
 
+export type MeetingProductivityInsights = {
+  overview: string;
+  decisions: string[];
+  actionItems: Array<{
+    owner: string;
+    task: string;
+    deadline: string;
+  }>;
+  followUps: string[];
+  followUpDraft: string;
+};
+
 function isAIError(result: AIResult): result is { success: false; error: string } {
   return result.success === false;
 }
@@ -372,6 +384,126 @@ Prefer bullet points when listing action items or decisions.`;
     answer: result.response,
     provider: result.provider,
   };
+}
+
+/**
+ * Generate structured post-meeting productivity outputs.
+ */
+export async function generateMeetingProductivityInsights(input: {
+  transcript?: string | null;
+  summary?: string | null;
+}): Promise<
+  | { success: true; insights: MeetingProductivityInsights; provider: AIProvider }
+  | { success: false; error: string }
+> {
+  const transcript = input.transcript?.trim();
+  const summary = input.summary?.trim();
+
+  if (!transcript && !summary) {
+    return {
+      success: false,
+      error: 'This meeting does not have enough context yet. Add a transcript or summary first.',
+    };
+  }
+
+  const systemInstructions = `You turn meeting notes into post-meeting productivity outputs.
+Return valid JSON only with this exact shape:
+{
+  "overview": string,
+  "decisions": string[],
+  "actionItems": [{"owner": string, "task": string, "deadline": string}],
+  "followUps": string[],
+  "followUpDraft": string
+}
+Rules:
+- Use only the provided context.
+- If a detail is unknown, write "Unassigned" or "No specific deadline mentioned".
+- Keep items concise and practical.
+- followUpDraft should read like a short professional follow-up message.`;
+
+  const prompt = [
+    'Meeting summary:',
+    summary || 'No summary available.',
+    '',
+    'Meeting transcript:',
+    transcript || 'No transcript available.',
+    '',
+    'Generate post-meeting productivity outputs.',
+  ].join('\n');
+
+  const result = await generateAIResponse(prompt, systemInstructions, {
+    temperature: 0.2,
+    maxTokens: 1200,
+  });
+
+  if (!result.success) {
+    return {
+      success: false,
+      error: 'error' in result ? result.error : 'Failed to generate productivity insights',
+    };
+  }
+
+  const parsed = parseMeetingProductivityInsights(result.response);
+
+  if (!parsed) {
+    return {
+      success: false,
+      error: 'The AI returned an invalid productivity response. Please try again.',
+    };
+  }
+
+  return {
+    success: true,
+    insights: parsed,
+    provider: result.provider,
+  };
+}
+
+function parseMeetingProductivityInsights(raw: string): MeetingProductivityInsights | null {
+  const cleaned = raw.trim();
+  const jsonCandidate = cleaned.startsWith('{')
+    ? cleaned
+    : cleaned.match(/```json\s*([\s\S]*?)```/i)?.[1]?.trim() ||
+      cleaned.match(/```\s*([\s\S]*?)```/i)?.[1]?.trim() ||
+      cleaned.slice(cleaned.indexOf('{'), cleaned.lastIndexOf('}') + 1);
+
+  if (!jsonCandidate) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(jsonCandidate) as Partial<MeetingProductivityInsights>;
+
+    return {
+      overview: typeof parsed.overview === 'string' ? parsed.overview : 'No overview generated.',
+      decisions: Array.isArray(parsed.decisions)
+        ? parsed.decisions.filter((item): item is string => typeof item === 'string')
+        : [],
+      actionItems: Array.isArray(parsed.actionItems)
+        ? parsed.actionItems.map((item) => ({
+            owner:
+              item && typeof item === 'object' && 'owner' in item && typeof item.owner === 'string'
+                ? item.owner
+                : 'Unassigned',
+            task:
+              item && typeof item === 'object' && 'task' in item && typeof item.task === 'string'
+                ? item.task
+                : 'No task provided',
+            deadline:
+              item && typeof item === 'object' && 'deadline' in item && typeof item.deadline === 'string'
+                ? item.deadline
+                : 'No specific deadline mentioned',
+          }))
+        : [],
+      followUps: Array.isArray(parsed.followUps)
+        ? parsed.followUps.filter((item): item is string => typeof item === 'string')
+        : [],
+      followUpDraft:
+        typeof parsed.followUpDraft === 'string' ? parsed.followUpDraft : 'No follow-up draft generated.',
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**

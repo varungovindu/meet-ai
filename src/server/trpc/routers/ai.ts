@@ -6,9 +6,14 @@
 
 import { z } from 'zod';
 import { router, protectedProcedure } from '../root';
-import { answerMeetingQuestion, generateAgentResponse } from '@/services/ai.service';
+import {
+  answerMeetingQuestion,
+  generateAgentResponse,
+  generateMeetingProductivityInsights,
+} from '@/services/ai.service';
 import { getAgentById } from '@/server/services/agent.service';
 import { getMeetingById } from '@/server/services/meeting.service';
+import { pushMeetingProductivityToNotion } from '@/server/services/notion.service';
 import { db } from '@/server/db';
 import { aiAgentMessages } from '@/server/db/schema';
 import { and, desc, eq } from 'drizzle-orm';
@@ -91,6 +96,61 @@ export const aiRouter = router({
       return {
         answer: result.answer,
         provider: result.provider,
+      };
+    }),
+
+  /**
+   * Generate post-meeting productivity outputs.
+   */
+  getMeetingProductivity: protectedProcedure
+    .input(
+      z.object({
+        meetingId: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const meeting = await getMeetingById(input.meetingId);
+
+      if (!meeting) {
+        throw new Error('Meeting not found');
+      }
+
+      const result = await generateMeetingProductivityInsights({
+        transcript: meeting.transcript,
+        summary: meeting.summary,
+      });
+
+      if (!result.success) {
+        const errorMessage =
+          'error' in result ? result.error : 'Failed to generate meeting productivity insights';
+        throw new Error(errorMessage);
+      }
+
+      return {
+        insights: result.insights,
+        provider: result.provider,
+      };
+    }),
+
+  /**
+   * Push meeting productivity outputs into Notion.
+   */
+  pushMeetingToNotion: protectedProcedure
+    .input(
+      z.object({
+        meetingId: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const result = await pushMeetingProductivityToNotion(input.meetingId);
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      return {
+        pageId: result.pageId,
+        url: result.url,
       };
     }),
 
